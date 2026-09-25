@@ -73,13 +73,35 @@ class CreditAgent(FinOSDomainAgent):
         current_assets = context.get("current_assets")
         current_liabilities = context.get("current_liabilities")
 
-        if ebitda is None or total_debt is None:
+        if ebitda is None or total_debt is None or revenue is None:
             try:
-                fund_data = route_to_vendor("get_fundamentals", entity_id)
+                fund_data = route_to_vendor("get_normalized_financials", entity_id, curr_date=as_of_date or None)
                 if isinstance(fund_data, dict):
-                    ebitda = ebitda or fund_data.get("EBITDA") or fund_data.get("ebitda")
-                    total_debt = total_debt or fund_data.get("TotalDebt") or fund_data.get("total_debt")
-                    revenue = revenue or fund_data.get("Revenue") or fund_data.get("revenue")
+                    ebitda = ebitda if ebitda is not None else (fund_data.get("ebitda_ttm") or fund_data.get("ebitda"))
+                    total_debt = total_debt if total_debt is not None else fund_data.get("total_debt")
+                    revenue = revenue if revenue is not None else (fund_data.get("revenue_ttm") or fund_data.get("revenue"))
+                    cash = cash if cash is not None else fund_data.get("cash")
+                    interest_expense = interest_expense if interest_expense is not None else (fund_data.get("interest_expense_ttm") or fund_data.get("interest_expense"))
+                    current_assets = current_assets if current_assets is not None else fund_data.get("current_assets")
+                    current_liabilities = current_liabilities if current_liabilities is not None else fund_data.get("current_liabilities")
+
+                    fiscal_period = fund_data.get("fiscal_period")
+                    currency = fund_data.get("currency") or "INR"
+                    source = fund_data.get("source") or "yfinance"
+                    field_status = fund_data.get("field_status", {})
+
+                    if fund_data.get("revenue") is not None:
+                        evidence_items.append(f"Revenue (TTM): {currency} {fund_data.get('revenue_ttm'):,.2f} (Status: {field_status.get('revenue', 'REAL')})")
+                    if fund_data.get("ebitda") is not None:
+                        evidence_items.append(f"EBITDA (TTM): {currency} {ebitda:,.2f} (Status: {field_status.get('ebitda', 'REAL')})")
+                    if fund_data.get("total_debt") is not None:
+                        evidence_items.append(f"Total Debt: {currency} {total_debt:,.2f} (Status: {field_status.get('total_debt', 'REAL')})")
+                    if fund_data.get("cash") is not None:
+                        evidence_items.append(f"Cash Balance: {currency} {cash:,.2f} (Status: {field_status.get('cash', 'REAL')})")
+                    if fund_data.get("interest_expense") is not None:
+                        evidence_items.append(f"Interest Expense (TTM): {currency} {interest_expense:,.2f} (Status: {field_status.get('interest_expense', 'REAL')})")
+                    if fiscal_period:
+                        evidence_items.append(f"Financial Period End: {fiscal_period} (Source: {source})")
             except Exception as exc:
                 evidence_items.append(f"Fundamentals query note: {exc}")
 
@@ -160,6 +182,25 @@ class CreditAgent(FinOSDomainAgent):
             confidence=confidence,
         )
 
+        metadata_dict = {
+            "credit_rating": credit_rating,
+            "default_probability_1y": default_prob,
+            "leverage_ratio": leverage_ratio,
+            "interest_coverage": interest_coverage,
+        }
+        if 'fund_data' in locals() and isinstance(fund_data, dict):
+            metadata_dict.update({
+                "revenue": revenue,
+                "ebitda": ebitda,
+                "total_debt": total_debt,
+                "cash": cash,
+                "interest_expense": interest_expense,
+                "fiscal_period": fund_data.get("fiscal_period"),
+                "currency": fund_data.get("currency"),
+                "source": fund_data.get("source"),
+                "field_status": fund_data.get("field_status"),
+            })
+
         return FinOSAgentOutput(
             agent_name=self.name,
             entity_id=entity_id,
@@ -169,9 +210,6 @@ class CreditAgent(FinOSDomainAgent):
             confidence=assessment.confidence,
             evidence=evidence_items or [summary_msg],
             status=self.status,
-            metadata={
-                "credit_rating": credit_rating,
-                "default_probability_1y": default_prob,
-                "leverage_ratio": leverage_ratio,
-            },
+            metadata=metadata_dict,
         )
+

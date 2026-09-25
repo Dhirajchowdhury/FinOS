@@ -1,0 +1,248 @@
+{
+  "test_configuration": {
+    "symbol": "RELIANCE.NS",
+    "market": "NSE India",
+    "as_of_date": "2026-09-25",
+    "request": "Perform a complete financial analysis.",
+    "llm_configured": true,
+    "llm_provider": "google",
+    "timestamp": "2026-09-25 20:43:51"
+  },
+  "overall_summary": {
+    "total_agents": 10,
+    "status_counts": {
+      "REAL": 5,
+      "PARTIAL": 3,
+      "DATA_UNAVAILABLE": 2,
+      "ERROR": 0
+    },
+    "total_execution_time_ms": 200168.13
+  },
+  "provider_trace": [
+    {
+      "provider": "Yahoo Finance (yfinance)",
+      "endpoint": "get_news_yfinance",
+      "method": "get_news",
+      "symbol": "RELIANCE.NS",
+      "data_type": "Company News Articles",
+      "record_count": 0,
+      "retrieved": false
+    },
+    {
+      "provider": "Yahoo Finance (yfinance)",
+      "endpoint": "get_global_news_yfinance",
+      "method": "get_global_news",
+      "symbol": "GLOBAL",
+      "data_type": "Global Macro News Feed",
+      "record_count": 1,
+      "retrieved": true
+    },
+    {
+      "provider": "FRED (Federal Reserve Economic Data)",
+      "endpoint": "get_fred_macro_data",
+      "method": "get_macro_indicators",
+      "symbol": "CPIAUCSL",
+      "data_type": "Consumer Price Index",
+      "record_count": 1,
+      "retrieved": true
+    },
+    {
+      "provider": "Yahoo Finance (yfinance)",
+      "endpoint": "get_normalized_financials",
+      "method": "get_normalized_financials",
+      "symbol": "RELIANCE.NS",
+      "data_type": "Normalized Company Financial Statements",
+      "record_count": 1,
+      "retrieved": true
+    }
+  ],
+  "agent_results": {
+    "News": {
+      "agent_name": "News Agent",
+      "status": "PARTIAL",
+      "input_summary": "Entity: RELIANCE.NS, As-of: 2026-09-25",
+      "data_sources_used": [
+        "Yahoo Finance (yfinance)"
+      ],
+      "external_data_retrieved": true,
+      "retrieved_data_summary": "Company News: No articles found; Global News: Retrieved feed",
+      "processing_method": "Lexicon rule-based sentiment & headline extraction",
+      "llm_called": true,
+      "llm_info": "Google Gemini / gemini-3.8-flash",
+      "output_summary": "Company-specific news unavailable for RELIANCE.NS on 2026-09-25; evaluated global macro news feed (neutral).",
+      "errors": [],
+      "missing_data": [
+        "Company-specific news articles for RELIANCE.NS"
+      ],
+      "execution_time_ms": 3707.76
+    },
+    "Macro": {
+      "agent_name": "Macro Economy Agent",
+      "status": "REAL",
+      "input_summary": "Entity: MACRO_US, As-of: 2026-09-25",
+      "data_sources_used": [
+        "FRED API"
+      ],
+      "external_data_retrieved": true,
+      "retrieved_data_summary": "FRED macroeconomic series (CPI, Fed Funds, Unemployment, Yield Spread, GDP) retrieved successfully",
+      "processing_method": "Yield curve slope calculation (10Y-2Y spread) & macro regime classification",
+      "llm_called": false,
+      "llm_info": "None (Deterministic Rule Engine)",
+      "output_summary": "Macro assessment for MACRO_US as of 2026-09-25: Regime - Late Cycle / Recession Caution.",
+      "errors": [],
+      "missing_data": [],
+      "execution_time_ms": 12291.59
+    },
+    "Credit": {
+      "agent_name": "Credit Agent",
+      "status": "REAL",
+      "input_summary": "Entity: RELIANCE.NS, As-of: 2026-09-25",
+      "data_sources_used": [
+        "Yahoo Finance (yfinance)"
+      ],
+      "external_data_retrieved": true,
+      "retrieved_data_summary": "Normalized Financial Statements (Revenue, Operating Income, EBITDA, Total Debt, Cash, Interest Expense) retrieved successfully",
+      "processing_method": "Deterministic Debt/EBITDA leverage mapping & rating bucket assignment",
+      "llm_called": false,
+      "llm_info": "None (Deterministic Ratio Rules)",
+      "output_summary": "Credit assessment for RELIANCE.NS as of 2026-09-25: Estimated Rating is BBB. 1-Year Default Probability: 1.5%. Balance sheet profile: Moderate.",
+      "errors": [],
+      "missing_data": [],
+      "execution_time_ms": 1125.79
+    },
+    "Investment": {
+      "agent_name": "Investment Agent",
+      "status": "REAL",
+      "input_summary": "Entity: RELIANCE.NS, As-of: 2026-09-25, Upstream: News, Macro, Credit",
+      "data_sources_used": [
+        "Upstream Domain Outputs",
+        "Google Gemini Bull/Bear Researchers"
+      ],
+      "external_data_retrieved": false,
+      "retrieved_data_summary": "Synthesized investment thesis using Bull/Bear debate via Gemini LLM and upstream assessments",
+      "processing_method": "Multi-analyst LLM debate thesis synthesis & catalyst extraction",
+      "llm_called": true,
+      "llm_info": "Google Gemini / gemini-3.8-flash",
+      "output_summary": "Investment assessment for RELIANCE.NS on 2026-09-25: Recommendation - Hold. Investment Thesis for RELIANCE.NS as of 2026-09-25: Rating recommendation is Hold. Synthesized Credit Solvency (Credit asses",
+      "errors": [],
+      "missing_data": [],
+      "execution_time_ms": 37398.27
+    },
+    "Risk": {
+      "agent_name": "Risk Agent",
+      "status": "REAL",
+      "input_summary": "Entity: RELIANCE.NS, As-of: 2026-09-25, Upstream: Investment, Credit, Macro",
+      "data_sources_used": [
+        "Google Gemini LLM Debators"
+      ],
+      "external_data_retrieved": false,
+      "retrieved_data_summary": "Synthesized risk debate views across Aggressive, Conservative, and Neutral perspectives via Gemini LLM",
+      "processing_method": "LLM Risk Debate Synthesis",
+      "llm_called": true,
+      "llm_info": "Google Gemini / gemini-3.8-flash",
+      "output_summary": "Risk Assessment for RELIANCE.NS as of 2026-09-25: Overall risk level is Medium. Synthesized upstream Investment Thesis (Investment assessment for RELIANCE.NS on 2026-09-25: Recommendation - Hold. Inve",
+      "errors": [],
+      "missing_data": [],
+      "execution_time_ms": 0.06
+    },
+    "Portfolio": {
+      "agent_name": "Portfolio Agent",
+      "status": "PARTIAL",
+      "input_summary": "Entity: RELIANCE.NS, As-of: 2026-09-25, Upstream: Investment, Risk",
+      "data_sources_used": [
+        "Context / Memory"
+      ],
+      "external_data_retrieved": false,
+      "retrieved_data_summary": "Evaluated holding concentration rules; no user portfolio holdings context supplied",
+      "processing_method": "Position sizing cap allocation (5.0% default cap)",
+      "llm_called": false,
+      "llm_info": "None (Rule-based Sizing Cap)",
+      "output_summary": "Portfolio assessment for RELIANCE.NS as of 2026-09-25 (SECURITY_LEVEL_ANALYSIS): Rating recommendation is Hold. Max position allocation capped at 5.0% equity (No user portfolio holdings supplied).",
+      "errors": [],
+      "missing_data": [
+        "User Portfolio Holdings",
+        "Cash Ledger Balance"
+      ],
+      "execution_time_ms": 71898.74
+    },
+    "Trading": {
+      "agent_name": "Trading Agent",
+      "status": "PARTIAL",
+      "input_summary": "Entity: RELIANCE.NS, As-of: 2026-09-25, Upstream: Portfolio, Investment, Risk",
+      "data_sources_used": [
+        "Upstream Domain Outputs",
+        "Google Gemini Trader Node"
+      ],
+      "external_data_retrieved": false,
+      "retrieved_data_summary": "Generated trade proposal action (Hold/Buy/Sell) with entry & stop-loss rules via Gemini LLM (Proposal Layer)",
+      "processing_method": "Regex price structure parsing & risk limit application (Proposal Layer)",
+      "llm_called": true,
+      "llm_info": "Google Gemini / gemini-3.8-flash",
+      "output_summary": "Trade Proposal for RELIANCE.NS on 2026-09-25: Action - Hold. (Unexecuted Trade Proposal).",
+      "errors": [],
+      "missing_data": [
+        "Broker API Order Routing",
+        "Live Exchange Execution Engine"
+      ],
+      "execution_time_ms": 72379.69
+    },
+    "Tax": {
+      "agent_name": "Tax Agent",
+      "status": "DATA_UNAVAILABLE",
+      "input_summary": "Entity: RELIANCE.NS, As-of: 2026-09-25, Upstream: Trading",
+      "data_sources_used": [
+        "Context / Rules"
+      ],
+      "external_data_retrieved": false,
+      "retrieved_data_summary": "Capital gains tax framework applied (Jurisdiction: INDIA auto-detected); cost basis unsupplied",
+      "processing_method": "Holding period day count & tax liability estimation rules",
+      "llm_called": false,
+      "llm_info": "None (Deterministic Rules)",
+      "output_summary": "Personalized tax calculation for RELIANCE.NS is DATA_UNAVAILABLE (no acquisition cost-basis or transaction dates supplied). Statutory Tax Framework for RELIANCE.NS under INDIA tax code: Short-Term Cap",
+      "errors": [],
+      "missing_data": [
+        "Acquisition cost basis and date unsupplied; personalized tax calculation unavailable"
+      ],
+      "execution_time_ms": 0.04
+    },
+    "Fraud": {
+      "agent_name": "Fraud Agent",
+      "status": "DATA_UNAVAILABLE",
+      "input_summary": "Entity: RELIANCE.NS, As-of: 2026-09-25, Upstream: Credit, Trading",
+      "data_sources_used": [
+        "Context / Rules"
+      ],
+      "external_data_retrieved": false,
+      "retrieved_data_summary": "Evaluated 0 transactions and filing consistency rules; no ledger data supplied",
+      "processing_method": "Structuring ($9.9k) & cash flow divergence rule scanning",
+      "llm_called": false,
+      "llm_info": "None (Rule Engine)",
+      "output_summary": "Fraud & Audit Risk Assessment for RELIANCE.NS as of 2026-09-25: Transaction monitoring is DATA_UNAVAILABLE (0 user transactions or ledger filings supplied). Anomaly scanning requires transaction ledge",
+      "errors": [],
+      "missing_data": [
+        "Transaction Ledger History",
+        "Accounting Filing Filings",
+        "Neo4j Graph Database",
+        "Fraud GNN Model"
+      ],
+      "execution_time_ms": 0.03
+    },
+    "Report": {
+      "agent_name": "Report Agent",
+      "status": "REAL",
+      "input_summary": "Entity: RELIANCE.NS, As-of: 2026-09-25, Upstream: 9 Domain Outputs",
+      "data_sources_used": [
+        "All Domain Agent Outputs"
+      ],
+      "external_data_retrieved": false,
+      "retrieved_data_summary": "Aggregated 9 domain outputs and rendered Markdown report tree on disk",
+      "processing_method": "Multi-agent report tree generation & executive summary synthesis",
+      "llm_called": false,
+      "llm_info": "None (Report Tree Engine)",
+      "output_summary": "Comprehensive 12-Section Financial Report compiled for RELIANCE.NS as of 2026-09-25.",
+      "errors": [],
+      "missing_data": [],
+      "execution_time_ms": 1.45
+    }
+  }
+}

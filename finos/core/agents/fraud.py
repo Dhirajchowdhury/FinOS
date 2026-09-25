@@ -134,29 +134,41 @@ class FraudAgent(FinOSDomainAgent):
 
         anomaly_score = min(1.0, round(anomaly_points, 2))
 
-        if anomaly_score >= 0.70:
-            risk_rating = "Critical Risk"
-        elif anomaly_score >= 0.40:
-            risk_rating = "High Risk"
-        elif anomaly_score >= 0.20:
-            risk_rating = "Medium Risk"
-        else:
-            risk_rating = "Low Risk"
+        has_data = bool(transactions or financial_filing)
 
-        summary_msg = (
-            f"Fraud & Audit Risk Assessment for {entity_id} as of {as_of_date}: "
-            f"Risk Rating is '{risk_rating}' (Anomaly Score: {anomaly_score:.2f}). "
-            f"Evaluated {len(transactions)} transactions and filing consistency."
-        )
+        if not has_data:
+            risk_rating = "UNMONITORED (DATA_UNAVAILABLE)"
+            summary_msg = (
+                f"Fraud & Audit Risk Assessment for {entity_id} as of {as_of_date}: "
+                f"Transaction monitoring is DATA_UNAVAILABLE (0 user transactions or ledger filings supplied). "
+                f"Anomaly scanning requires transaction ledger inputs."
+            )
+            evidence_items.append("Transaction monitoring unperformed: User transaction ledger unsupplied.")
+            evidence_items.append("Required inputs for fraud scanning: Structuring ($9.9k), shell counterparty, velocity, and revenue/cash flow divergence signals.")
+            confidence = 0.35
+        else:
+            if anomaly_score >= 0.70:
+                risk_rating = "Critical Risk"
+            elif anomaly_score >= 0.40:
+                risk_rating = "High Risk"
+            elif anomaly_score >= 0.20:
+                risk_rating = "Medium Risk"
+            else:
+                risk_rating = "Low Risk"
+
+            summary_msg = (
+                f"Fraud & Audit Risk Assessment for {entity_id} as of {as_of_date}: "
+                f"Risk Rating is '{risk_rating}' (Anomaly Score: {anomaly_score:.2f}). "
+                f"Evaluated {len(transactions)} transactions and filing consistency."
+            )
+            confidence = 0.90
 
         evidence_items.extend(anomalies[:5])
         evidence_items.extend(filing_inconsistencies[:5])
 
-        confidence = 0.90 if (transactions or financial_filing) else 0.70
-
         assessment = FraudAssessment(
             summary=summary_msg,
-            anomaly_score=anomaly_score,
+            anomaly_score=anomaly_score if has_data else 0.0,
             risk_rating=risk_rating,
             red_flags=red_flags,
             detected_anomalies=anomalies,
@@ -164,8 +176,9 @@ class FraudAgent(FinOSDomainAgent):
             suspicious_counterparties=suspicious_counterparties,
             gnn_risk_signals={
                 "graph_node": entity_id,
-                "anomaly_score": anomaly_score,
+                "anomaly_score": anomaly_score if has_data else 0.0,
                 "counterparty_clusters": len(suspicious_counterparties),
+                "data_status": "REAL" if has_data else "DATA_UNAVAILABLE",
             },
             confidence=confidence,
         )
@@ -180,8 +193,10 @@ class FraudAgent(FinOSDomainAgent):
             evidence=evidence_items or [summary_msg],
             status=self.status,
             metadata={
-                "anomaly_score": anomaly_score,
+                "transaction_monitoring_status": "REAL" if has_data else "DATA_UNAVAILABLE",
+                "anomaly_score": anomaly_score if has_data else None,
                 "risk_rating": risk_rating,
                 "transactions_scanned": len(transactions),
             },
         )
+

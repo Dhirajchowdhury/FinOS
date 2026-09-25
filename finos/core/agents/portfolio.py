@@ -69,6 +69,9 @@ class PortfolioAgent(FinOSDomainAgent):
         holdings = context.get("holdings") or []
         cash_balance = context.get("cash_balance")
 
+        has_user_portfolio = bool(holdings or portfolio_ctx_str)
+        analysis_scope = "USER_PORTFOLIO_ANALYSIS" if has_user_portfolio else "SECURITY_LEVEL_ANALYSIS"
+
         decision = context.get("final_trade_decision", "")
 
         if not decision and self.llm:
@@ -115,7 +118,7 @@ class PortfolioAgent(FinOSDomainAgent):
                 if weight > 10.0:
                     concentration_warning = True
 
-        cash_context_str = f"Cash Available: ${cash_balance:,.2f}" if isinstance(cash_balance, (int, float)) else (portfolio_ctx_str[:150] if portfolio_ctx_str else "Standard Cash Reserves")
+        cash_context_str = f"Cash Available: ${cash_balance:,.2f}" if isinstance(cash_balance, (int, float)) else (portfolio_ctx_str[:150] if portfolio_ctx_str else "Unspecified Cash Balance (Security-Level Analysis)")
 
         max_pos_size = 5.0
         if rating in ["Buy", "Overweight"]:
@@ -123,10 +126,16 @@ class PortfolioAgent(FinOSDomainAgent):
         elif rating in ["Underweight", "Sell"]:
             max_pos_size = 0.0
 
-        summary_str = (
-            f"Portfolio assessment for {ticker} as of {as_of_date}: Rating recommendation is {rating}. "
-            f"Max position allocation capped at {max_pos_size}% equity."
-        )
+        if has_user_portfolio:
+            summary_str = (
+                f"Portfolio assessment for {ticker} as of {as_of_date} ({analysis_scope}): Rating recommendation is {rating}. "
+                f"Max position allocation capped at {max_pos_size}% equity based on current holdings."
+            )
+        else:
+            summary_str = (
+                f"Portfolio assessment for {ticker} as of {as_of_date} ({analysis_scope}): Rating recommendation is {rating}. "
+                f"Max position allocation capped at {max_pos_size}% equity (No user portfolio holdings supplied)."
+            )
 
         assessment = PortfolioAssessment(
             summary=summary_str,
@@ -135,10 +144,10 @@ class PortfolioAgent(FinOSDomainAgent):
             position_adjustments=[f"Adjust exposure to match rating {rating}"] if rating != "Hold" else ["Maintain existing position"],
             risk_exposure="High Exposure Warning" if concentration_warning else "Controlled Risk Exposure",
             cash_context=cash_context_str,
-            existing_holdings_impact=f"Existing position tracked for {ticker}" if concentration_warning else "No overweight concentration detected",
+            existing_holdings_impact=f"Existing position tracked for {ticker}" if concentration_warning else ("No overweight concentration detected" if has_user_portfolio else "User portfolio unsupplied; security-level position sizing guideline applied"),
             concentration_warning=concentration_warning,
             max_position_size_pct=max_pos_size,
-            confidence=0.85 if portfolio_ctx_str or holdings else 0.72,
+            confidence=0.88 if has_user_portfolio else 0.70,
         )
 
         return FinOSAgentOutput(
@@ -152,7 +161,10 @@ class PortfolioAgent(FinOSDomainAgent):
             status=self.status,
             metadata={
                 "source": "tradingagents_portfolio_manager",
+                "analysis_scope": analysis_scope,
+                "has_user_portfolio": has_user_portfolio,
                 "recommended_rating": rating,
                 "concentration_warning": concentration_warning,
             },
         )
+

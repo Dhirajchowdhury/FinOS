@@ -72,6 +72,22 @@ class RiskAgent(FinOSDomainAgent):
             )
 
         context = agent_input.context or {}
+        prev_outputs = agent_input.relevant_previous_outputs or {}
+
+        invest_output = prev_outputs.get("investment") or context.get("investment_assessment")
+        credit_output = prev_outputs.get("credit") or context.get("credit_assessment")
+        macro_output = prev_outputs.get("macro") or context.get("macro_assessment")
+
+        invest_thesis = context.get("investment_plan") or (
+            invest_output.summary if hasattr(invest_output, "summary") else str(invest_output or "")
+        )
+        credit_summary = context.get("credit_report") or (
+            credit_output.summary if hasattr(credit_output, "summary") else str(credit_output or "")
+        )
+        macro_summary = context.get("macro_report") or (
+            macro_output.summary if hasattr(macro_output, "summary") else str(macro_output or "")
+        )
+
         risk_debate_state = context.get("risk_debate_state") or {}
         final_decision = context.get("final_trade_decision", "")
 
@@ -84,7 +100,7 @@ class RiskAgent(FinOSDomainAgent):
                 "company_of_interest": ticker,
                 "asset_type": agent_input.entity_type,
                 "trade_date": as_of_date,
-                "investment_plan": context.get("investment_plan", "Standard plan"),
+                "investment_plan": invest_thesis or "Standard plan",
                 "trader_investment_plan": context.get("trader_investment_plan", "Standard trader proposal"),
                 "past_context": context.get("past_context", ""),
                 "portfolio_context": context.get("portfolio_context", ""),
@@ -118,57 +134,50 @@ class RiskAgent(FinOSDomainAgent):
         key_risks = []
         mitigations = []
 
-        all_text = f"{aggressive_hist} {conservative_hist} {neutral_hist} {final_decision}".lower()
+        all_text = f"{invest_thesis} {credit_summary} {macro_summary} {aggressive_hist} {conservative_hist} {neutral_hist} {final_decision}".lower()
 
-        if "volatility" in all_text or "atr" in all_text or "swing" in all_text:
-            key_risks.append("Heightened short-term price volatility")
-            mitigations.append("Enforce strict trailing stop-loss boundary")
-            volatility_risk = "High"
-        else:
-            volatility_risk = "Moderate"
+        if "recession" in all_text or "inversion" in all_text or "late cycle" in all_text:
+            key_risks.append("Macroeconomic late-cycle / contraction headwind")
+            mitigations.append("Reduce tactical position exposure during macro regime shift")
 
-        if "drawdown" in all_text or "downside" in all_text or "bear" in all_text:
-            key_risks.append("Potential drawdown under adverse market sentiment")
-            mitigations.append("Size initial position to max 2% total equity risk")
-            drawdown_risk = "Elevated"
-        else:
-            drawdown_risk = "Controlled"
+        if "bbb" in all_text or "leverage" in all_text or "debt" in all_text:
+            key_risks.append("Debt covenant & interest rate sensitivity risk")
+            mitigations.append("Monitor interest coverage ratio (> 2.0x required)")
 
-        if "portfolio" in all_text or "concentration" in all_text:
-            key_risks.append("Sector or asset concentration exposure")
-            mitigations.append("Verify overall portfolio balance prior to order submission")
-            concentration_risk = "Moderate"
-        else:
-            concentration_risk = "Low"
+        if "underweight" in all_text or "sell" in all_text or "bear" in all_text:
+            key_risks.append("Negative analyst consensus / downside momentum risk")
+            mitigations.append("Set tight stop-loss at 4% below entry price")
 
-        if conservative_hist and not aggressive_hist:
+        if not key_risks:
+            key_risks.append("General equity market volatility & liquidity risk")
+            mitigations.append("Enforce 5% position cap limit")
+
+        if "high risk" in all_text or "critical" in all_text or "distressed" in all_text:
             risk_level = "High"
-        elif "high risk" in all_text or "sell" in all_text or "critical" in all_text:
-            risk_level = "High"
-        elif "low risk" in all_text:
+        elif "low risk" in all_text or "aa rating" in all_text:
             risk_level = "Low"
         else:
             risk_level = "Medium"
 
         synthesis_summary = (
             f"Risk Assessment for {ticker} as of {as_of_date}: Overall risk level is {risk_level}. "
-            f"Synthesized views across aggressive, conservative, and neutral perspectives."
+            f"Synthesized upstream Investment Thesis ({invest_thesis[:100]}), Credit Rating ({credit_summary[:100]}), and Macro Regime ({macro_summary[:100]})."
         )
 
         assessment = RiskAssessment(
             summary=synthesis_summary,
             risk_level=risk_level,
-            key_risks=key_risks or ["General market volatility risk"],
-            aggressive_view=aggressive_hist or "Upside exposure & momentum priority",
-            conservative_view=conservative_hist or "Capital preservation & stop-loss boundary priority",
-            neutral_view=neutral_hist or "Balanced risk-adjusted return baseline",
+            key_risks=key_risks,
+            aggressive_view=aggressive_hist or f"Growth upside exposure for {ticker}",
+            conservative_view=conservative_hist or f"Capital preservation & downside stop-loss boundary for {ticker}",
+            neutral_view=neutral_hist or f"Balanced risk-adjusted valuation baseline for {ticker}",
             consensus_decision=final_decision or f"Risk synthesis for {ticker} completed",
-            risk_mitigations=mitigations or ["Standard stop-loss boundary", "Position sizing limit"],
-            volatility_risk=volatility_risk,
-            drawdown_risk=drawdown_risk,
+            risk_mitigations=mitigations,
+            volatility_risk="High" if "volatility" in all_text else "Moderate",
+            drawdown_risk="Elevated" if "recession" in all_text or "bear" in all_text else "Controlled",
             liquidity_risk="Low",
-            concentration_risk=concentration_risk,
-            confidence=0.82 if (aggressive_hist and conservative_hist) else 0.70,
+            concentration_risk="Moderate" if "portfolio" in all_text else "Low",
+            confidence=0.88 if (invest_thesis and credit_summary) else 0.72,
         )
 
         return FinOSAgentOutput(
@@ -178,10 +187,11 @@ class RiskAgent(FinOSDomainAgent):
             summary=assessment.summary,
             findings=assessment,
             confidence=assessment.confidence,
-            evidence=[aggressive_hist[:150], conservative_hist[:150], neutral_hist[:150]] if aggressive_hist else [],
+            evidence=key_risks[:3] + mitigations[:3],
             status=self.status,
             metadata={
                 "specialists": ["aggressive_debator", "conservative_debator", "neutral_debator"],
                 "risk_level": risk_level,
             },
         )
+

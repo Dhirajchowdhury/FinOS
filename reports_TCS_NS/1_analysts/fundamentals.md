@@ -1,0 +1,1 @@
+Macro assessment for MACRO_US as of 2026-09-25: Regime - Late Cycle / Recession Caution.

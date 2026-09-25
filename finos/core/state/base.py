@@ -32,9 +32,31 @@ class FinosState(MessagesState):
 
     entity_id: Annotated[str, "Primary financial entity identifier under analysis"]
     entity_type: Annotated[str, "Classification of the entity: equity, macro, filing, etc."]
+    market: Annotated[str, "Market or jurisdiction identifier (e.g. 'NSE India', 'US')"]
     as_of_date: Annotated[str, "Strict point-in-time cutoff date (YYYY-MM-DD)"]
     request: Annotated[str, "User or system instruction initiating the workflow"]
     sender: Annotated[str, "Identifier of the last agent or tool node executed"]
+    
+    # Domain agent assessment objects
+    market_data: Annotated[dict[str, Any], "Price & volume history context"]
+    news: Annotated[dict[str, Any], "News Agent assessment output"]
+    macro: Annotated[dict[str, Any], "Macro Economy Agent assessment output"]
+    fundamentals: Annotated[dict[str, Any], "Raw fundamental data"]
+    credit: Annotated[dict[str, Any], "Credit Agent assessment output"]
+    investment: Annotated[dict[str, Any], "Investment Agent assessment output"]
+    risk: Annotated[dict[str, Any], "Risk Agent assessment output"]
+    portfolio: Annotated[dict[str, Any], "Portfolio Agent assessment output"]
+    tax: Annotated[dict[str, Any], "Tax Agent assessment output"]
+    fraud: Annotated[dict[str, Any], "Fraud Agent assessment output"]
+    trading: Annotated[dict[str, Any], "Trading Agent assessment output"]
+    report: Annotated[dict[str, Any], "Report Agent assessment output"]
+
+    # Workflow metadata & governance
+    data_quality: Annotated[dict[str, Any], "Domain-level data quality and confidence metrics"]
+    missing_data: Annotated[list[str], "Aggregated missing data fields across workflow"]
+    errors: Annotated[list[str], "Aggregated execution or data retrieval errors"]
+    provenance: Annotated[dict[str, Any], "Data source provenance and vintage timestamps"]
     artifacts: Annotated[dict[str, Any], "Domain reports and structured outputs"]
     metadata: Annotated[dict[str, Any], "Workflow metadata, tags, and runtime options"]
     past_context: Annotated[str, "Retrieved memory or historical lessons as of as_of_date"]
+

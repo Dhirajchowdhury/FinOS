@@ -72,70 +72,81 @@ class NewsAgent(FinOSDomainAgent):
         pos_count = 0
         neg_count = 0
 
+        company_articles: list[dict[str, Any]] = []
+        global_articles: list[dict[str, Any]] = []
+
         # Step 1: Retrieve news if not supplied in context
         if not news_report and not raw_articles:
             try:
-                company_news = route_to_vendor("get_news", ticker, start_date=as_of_date, end_date=as_of_date)
-                if isinstance(company_news, dict) and "articles" in company_news:
-                    raw_articles.extend(company_news.get("articles", []))
-                elif isinstance(company_news, list):
-                    raw_articles.extend(company_news)
-                elif isinstance(company_news, str) and not company_news.startswith("NO_DATA_AVAILABLE"):
-                    news_report = company_news
-                    fetched_evidence.append(company_news[:300])
+                comp_res = route_to_vendor("get_news", ticker, start_date=as_of_date, end_date=as_of_date)
+                if isinstance(comp_res, list):
+                    company_articles.extend(comp_res)
+                elif isinstance(comp_res, dict) and "articles" in comp_res:
+                    company_articles.extend(comp_res.get("articles", []))
+                elif isinstance(comp_res, str) and not comp_res.startswith("NO_DATA_AVAILABLE"):
+                    news_report = comp_res
             except Exception as exc:
-                fetched_evidence.append(f"Company news vendor note: {exc}")
+                fetched_evidence.append(f"Company news query note: {exc}")
 
             try:
-                global_news = route_to_vendor("get_global_news", curr_date=as_of_date, look_back_days=7, limit=5)
-                if isinstance(global_news, list):
-                    raw_articles.extend(global_news)
-                elif isinstance(global_news, str) and not global_news.startswith("DATA_UNAVAILABLE"):
-                    fetched_evidence.append(f"Global news: {global_news[:200]}")
+                glob_res = route_to_vendor("get_global_news", curr_date=as_of_date, look_back_days=7, limit=5)
+                if isinstance(glob_res, list):
+                    global_articles.extend(glob_res)
+                elif isinstance(glob_res, str) and not glob_res.startswith("DATA_UNAVAILABLE"):
+                    fetched_evidence.append(f"Global macro news feed: {glob_res[:200]}")
             except Exception:
                 pass
+        elif raw_articles:
+            company_articles = list(raw_articles)
 
-        # Step 2: Parse raw articles if present
-        if raw_articles:
-            for art in raw_articles:
-                if isinstance(art, dict):
-                    title = art.get("title", "") or art.get("headline", "")
-                    summary = art.get("summary", "") or art.get("snippet", "")
-                    source = art.get("source", "") or art.get("publisher", "")
-                    text = f"{title}. {summary}"
-                else:
-                    text = str(art)
-                    title = text[:100]
-                    source = "NewsFeed"
+        # Step 2: Normalize and parse articles
+        normalized_articles: list[dict[str, Any]] = []
+        target_articles = company_articles if company_articles else global_articles
+        news_scope = "COMPANY_SPECIFIC" if company_articles else ("GLOBAL_FALLBACK" if global_articles or fetched_evidence else "NONE")
 
-                if not text.strip():
-                    continue
+        for art in target_articles:
+            if isinstance(art, dict):
+                norm_art = {
+                    "title": str(art.get("title") or art.get("headline") or "").strip(),
+                    "snippet": str(art.get("summary") or art.get("snippet") or art.get("text") or "").strip(),
+                    "source": str(art.get("source") or art.get("publisher") or "yfinance").strip(),
+                    "published_at": str(art.get("published_at") or art.get("pubDate") or art.get("time") or as_of_date).strip(),
+                }
+            else:
+                text_str = str(art).strip()
+                norm_art = {
+                    "title": text_str[:120],
+                    "snippet": text_str,
+                    "source": "NewsFeed",
+                    "published_at": as_of_date,
+                }
 
-                fetched_evidence.append(f"[{source}] {title}" if source else title)
-                key_events.append(title if title else text[:120])
+            if not norm_art["title"] and not norm_art["snippet"]:
+                continue
 
-                text_lower = text.lower()
-                if any(w in text_lower for w in ["growth", "surge", "record", "profit", "beat", "upgraded", "breakthrough", "launch"]):
-                    pos_count += 1
-                    opportunities.append(f"Positive momentum signal: {title[:100]}")
-                if any(w in text_lower for w in ["drop", "decline", "investigation", "lawsuit", "missed", "downgraded", "loss", "risk", "warning"]):
-                    neg_count += 1
-                    risk_factors.append(f"Downside risk signal: {title[:100]}")
+            normalized_articles.append(norm_art)
+            title = norm_art["title"] or norm_art["snippet"][:100]
+            src = norm_art["source"]
+            pub = norm_art["published_at"]
 
-        # Step 3: Parse news_report string if available
+            fetched_evidence.append(f"[{src} ({pub})] {title}")
+            key_events.append(title)
+
+            text_lower = f"{norm_art['title']} {norm_art['snippet']}".lower()
+            if any(w in text_lower for w in ["growth", "surge", "record", "profit", "beat", "upgraded", "breakthrough", "launch"]):
+                pos_count += 1
+                opportunities.append(f"Positive momentum signal: {title[:100]}")
+            if any(w in text_lower for w in ["drop", "decline", "investigation", "lawsuit", "missed", "downgraded", "loss", "risk", "warning"]):
+                neg_count += 1
+                risk_factors.append(f"Downside risk signal: {title[:100]}")
+
         if news_report:
-            lines = [line.strip() for line in news_report.split("\n") if line.strip()]
-            for line in lines[:10]:
-                if len(line) > 15 and not line.startswith("#"):
-                    key_events.append(line[:150])
-
             nr_lower = news_report.lower()
             if "bullish" in nr_lower or "growth" in nr_lower or "outperform" in nr_lower:
                 pos_count += 2
             if "bearish" in nr_lower or "decline" in nr_lower or "risk" in nr_lower:
                 neg_count += 2
 
-        # Determine sentiment
         if pos_count > 0 and neg_count > 0 and abs(pos_count - neg_count) <= 1:
             sentiment = "mixed"
         elif pos_count > neg_count:
@@ -145,23 +156,19 @@ class NewsAgent(FinOSDomainAgent):
         else:
             sentiment = "neutral"
 
-        # Coverage and confidence assessment
-        has_data = bool(raw_articles or news_report or fetched_evidence)
-        confidence = 0.80 if len(raw_articles) >= 3 else (0.65 if has_data else 0.30)
-
-        if news_report:
-            summary_str = f"News report for {ticker} as of {as_of_date} ({sentiment}): {news_report[:300]}"
-        elif raw_articles:
-            summary_str = f"News evaluation for {ticker} as of {as_of_date}: Sentiment is {sentiment}. Retrieved {len(raw_articles)} articles."
-        elif has_data:
-            summary_str = f"News evaluation for {ticker} as of {as_of_date}: Sentiment is {sentiment}."
+        if news_scope == "COMPANY_SPECIFIC":
+            summary_str = f"Company-specific news for {ticker} as of {as_of_date} ({sentiment}): Retrieved {len(normalized_articles)} articles."
+            confidence = 0.85 if len(normalized_articles) >= 3 else 0.75
+        elif news_scope == "GLOBAL_FALLBACK":
+            summary_str = f"Company-specific news unavailable for {ticker} on {as_of_date}; evaluated global macro news feed ({sentiment})."
+            confidence = 0.55
         else:
-            summary_str = f"No recent news articles found for {ticker} as of {as_of_date}."
-
+            summary_str = f"No news articles found for {ticker} as of {as_of_date}."
+            confidence = 0.30
 
         market_impact = (
-            f"{sentiment.capitalize()} market impact expected based on recent headline sentiment."
-            if has_data
+            f"{sentiment.capitalize()} sentiment impact based on {'company headlines' if news_scope == 'COMPANY_SPECIFIC' else 'global macro news feed'}."
+            if news_scope != "NONE"
             else "Negligible expected market impact due to limited news coverage."
         )
 
@@ -188,8 +195,12 @@ class NewsAgent(FinOSDomainAgent):
             evidence=assessment.evidence,
             status=self.status,
             metadata={
-                "source": "tradingagents_news_dataflows",
-                "article_count": len(raw_articles),
+                "source": "yfinance_news_dataflows",
+                "news_scope": news_scope,
+                "company_article_count": len(company_articles),
+                "global_article_count": len(global_articles),
+                "normalized_articles": normalized_articles[:5],
                 "as_of_date": as_of_date,
             },
         )
+
