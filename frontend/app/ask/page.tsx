@@ -1,50 +1,48 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { ALL_AGENTS } from "@/lib/mock/agents";
+import { Agent, AgentId } from "@/types/agent";
+
+import { AskFinOSComposer } from "@/components/ask-finos/AskFinOSComposer";
+import { AgentSidebar, Thread } from "@/components/ask-finos/AgentSidebar";
+import { AgentSelectorGrid } from "@/components/ask-finos/AgentSelectorGrid";
+import { AgentDetailModal } from "@/components/ask-finos/AgentDetailModal";
+import { AgentWorkspacePanel } from "@/components/ask-finos/AgentWorkspacePanel";
+import { FinOSResponseBubble, ConversationMessage } from "@/components/ask-finos/FinOSResponseBubble";
+import { ThinkingState } from "@/components/ask-finos/ThinkingState";
+import { SuggestedPromptsHero } from "@/components/ask-finos/SuggestedPromptsHero";
+
 import {
-  Send,
-  Sparkles,
+  ArrowLeft,
   Bot,
-  User,
-  Plus,
-  MessageSquare,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  ArrowRight,
-  FileText,
+  Sparkles,
   Loader2,
-  Clock,
   ShieldCheck,
+  Search,
+  Layers,
+  ChevronRight,
 } from "lucide-react";
 
-interface ConversationMessage {
-  id: string;
-  sender: "user" | "finos";
-  text: string;
-  timestamp: string;
-  agentsConsulted?: string[];
-  consensusScore?: number;
-  findings?: string[];
-  actions?: string[];
-}
-
-interface Thread {
-  id: string;
-  title: string;
-  time: string;
+interface FullThread extends Thread {
   messages: ConversationMessage[];
 }
+
+type ViewState = "initial" | "searched" | "agent";
 
 function AskFinOSContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialQuery = searchParams.get("q") || "";
 
-  const [threads, setThreads] = useState<Thread[]>([
+  // View State for Search-First Workspace: "initial" | "searched" | "agent"
+  const [viewState, setViewState] = useState<ViewState>(initialQuery ? "searched" : "initial");
+  const [activeSearchQuery, setActiveSearchQuery] = useState(initialQuery);
+
+  // Initial Threads State
+  const [threads, setThreads] = useState<FullThread[]>([
     {
       id: "t-1",
       title: "Technology Overweight Risk",
@@ -72,6 +70,7 @@ function AskFinOSContent() {
             "Rebalance upcoming monthly surplus into Sovereign Debt (G-Sec 2034) to normalize tech weight to 25%.",
             "Set trailing stop-loss guardrails around ₹4,050 for TCS to protect short-term gains.",
           ],
+          sources: ["Bloomberg B-PIPE", "SEC EDGAR 10-K", "FinOS Risk Engine"],
         },
       ],
     },
@@ -97,9 +96,8 @@ function AskFinOSContent() {
             "Core CPI cooling to 3.8% provides headroom against rate hikes.",
             "HDFC Bank loan book expansion pace stands at 14.8% YoY.",
           ],
-          actions: [
-            "Maintain current banking allocation without tactical trimming.",
-          ],
+          actions: ["Maintain current banking allocation without tactical trimming."],
+          sources: ["RBI Database", "Reuters Wire", "FinOS Macro-LSTM"],
         },
       ],
     },
@@ -125,63 +123,195 @@ function AskFinOSContent() {
             "Eligible capital loss lots identified in volatile mid-cap positions.",
             "Section 94 compliance verified against wash-sale restrictions.",
           ],
-          actions: [
-            "Execute selective lot liquidation before quarter-end.",
-          ],
+          actions: ["Execute selective lot liquidation before quarter-end."],
+          sources: ["Income Tax Dept Circulars", "Internal Brokerage Tax Lots"],
         },
       ],
     },
   ]);
 
   const [activeThreadId, setActiveThreadId] = useState("t-1");
-  const [inputText, setInputText] = useState("");
-  const [isThinking, setIsThinking] = useState(false);
-  const [expandedFindingsId, setExpandedFindingsId] = useState<string | null>("m-2");
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [inspectModalAgent, setInspectModalAgent] = useState<Agent | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [composerInitialText, setComposerInitialText] = useState(initialQuery);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const currentThread = threads.find((t) => t.id === activeThreadId) || threads[0];
 
-  // If query is passed in URL query param, automatically send or populate
+  // Auto scroll message stream to bottom on new messages
   useEffect(() => {
-    if (initialQuery) {
-      setInputText(initialQuery);
-    }
-  }, [initialQuery]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [currentThread?.messages, isProcessing]);
 
-  const handleSendMessage = (textToSend?: string) => {
-    const text = (textToSend || inputText).trim();
-    if (!text || isThinking) return;
+  // Handle agent selection from sidebar or grid
+  const handleSelectAgent = (agent: Agent | null) => {
+    setSelectedAgent(agent);
+    if (agent) {
+      setViewState("agent");
+    } else {
+      setViewState(currentThread.messages.length > 0 ? "searched" : "initial");
+    }
+  };
+
+  const handleNewThread = () => {
+    const newId = `t-${Date.now()}`;
+    const newThread: FullThread = {
+      id: newId,
+      title: "New Financial Inquiry",
+      time: "Just now",
+      messages: [],
+    };
+    setThreads([newThread, ...threads]);
+    setActiveThreadId(newId);
+    setSelectedAgent(null);
+    setViewState("initial");
+    setActiveSearchQuery("");
+  };
+
+  // Main message send handler
+  const handleSendMessage = ({
+    message,
+    deepReasoning,
+    attachments,
+    selectedAgentId,
+  }: {
+    message: string;
+    deepReasoning: boolean;
+    attachments: Array<{ name: string; type: string }>;
+    selectedAgentId?: AgentId | null;
+  }) => {
+    if (!message.trim() || isProcessing) return;
+
+    setActiveSearchQuery(message);
+    if (viewState === "initial") {
+      setViewState("searched");
+    }
 
     const userMsg: ConversationMessage = {
       id: `u-${Date.now()}`,
       sender: "user",
-      text,
+      text: attachments.length > 0
+        ? `${message} [Attached: ${attachments.map((a) => a.name).join(", ")}]`
+        : message,
       timestamp: "Just now",
     };
 
     const updatedMessages = [...currentThread.messages, userMsg];
-    setThreads((prev) =>
-      prev.map((t) => (t.id === activeThreadId ? { ...t, messages: updatedMessages } : t))
-    );
-    setInputText("");
-    setIsThinking(true);
 
+    // Update title if first message
+    const threadTitle = currentThread.messages.length === 0
+      ? message.length > 28 ? `${message.substring(0, 28)}...` : message
+      : currentThread.title;
+
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === activeThreadId
+          ? { ...t, title: threadTitle, messages: updatedMessages }
+          : t
+      )
+    );
+
+    setIsProcessing(true);
+
+    // Intelligent Agent Routing Logic
     setTimeout(() => {
+      const lowerQuery = message.toLowerCase();
+      let consulted: AgentId[] = ["portfolio", "risk", "investment", "macro"];
+      let consensus = 92;
+      let responseSummary = "";
+      let findingsList: string[] = [];
+      let actionsList: string[] = [];
+      let sourcesList: string[] = [];
+
+      // Detect @Mention or selected agent prioritization
+      if (selectedAgentId) {
+        consulted = [selectedAgentId, "portfolio", "risk"];
+      } else if (lowerQuery.includes("@tax") || lowerQuery.includes("tax")) {
+        consulted = ["tax", "portfolio", "report"];
+        consensus = 95;
+        responseSummary = `Tax Agent scanned open positions under Section 112A & 94. Short-term harvesting opportunities estimated at ₹48,500.`;
+        findingsList = [
+          "Identified 3 loss lots in non-core holdings eligible for immediate harvesting.",
+          "Verified wash-sale compliance for next 30 days.",
+        ];
+        actionsList = ["Liquidate loss lots before fiscal quarter close to optimize net capital gain liability."];
+        sourcesList = ["CBDT Tax Rule Engine v4.2", "Internal Tax Lot Ledger"];
+      } else if (lowerQuery.includes("@news") || lowerQuery.includes("news") || lowerQuery.includes("market")) {
+        consulted = ["news", "macro", "risk", "investment"];
+        consensus = 94;
+        responseSummary = `News Agent parsed global media wires & regulatory feeds. Sentiment index stands at +0.42 (Moderately Bullish).`;
+        findingsList = [
+          "Macro headline sentiment remains supported by cooling headline inflation.",
+          "No adverse SEBI/SEC regulatory disclosures recorded in the last 24 hours.",
+        ];
+        actionsList = ["Maintain tactical equity tilt with focus on resilient cash flow names."];
+        sourcesList = ["Reuters Wire", "Financial Times API", "SEBI Disclosures"];
+      } else if (lowerQuery.includes("@credit") || lowerQuery.includes("credit") || lowerQuery.includes("debt")) {
+        consulted = ["credit", "macro", "risk"];
+        consensus = 91;
+        responseSummary = `Credit Agent calculated synthetic corporate ratings and debt coverage metrics. DSCR remains healthy at 2.45x.`;
+        findingsList = [
+          "Corporate bond yield spreads between AAA and AA papers narrowed by 12bps.",
+          "Debt covenant buffers remain compliant across all credit facilities.",
+        ];
+        actionsList = ["Monitor rate refinancing schedules ahead of upcoming central bank policy decisions."];
+        sourcesList = ["CRISIL Data Feeds", "Internal Balance Sheet Engine"];
+      } else if (lowerQuery.includes("@fraud") || lowerQuery.includes("fraud") || lowerQuery.includes("suspicious")) {
+        consulted = ["fraud", "risk", "credit"];
+        consensus = 99;
+        responseSummary = `Fraud Agent executed GNN transaction anomaly scan across recent disbursements. 0 critical security alerts found.`;
+        findingsList = [
+          "All wire disbursements verified against sanctioned OFAC entity lists.",
+          "Geolocation and session signatures confirmed zero multi-IP anomalies.",
+        ];
+        actionsList = ["Keep automated GraphRAG transaction guardrails active."];
+        sourcesList = ["FinOS Security Enclave", "OFAC Sanctions Registry"];
+      } else if (lowerQuery.includes("@trading") || lowerQuery.includes("trading") || lowerQuery.includes("slippage")) {
+        consulted = ["trading", "risk", "portfolio"];
+        consensus = 93;
+        responseSummary = `Trading Agent evaluated order book microstructures and bid-ask spreads. Estimated market impact for block rebalance is 8bps.`;
+        findingsList = [
+          "Level 2 order book liquidity depth is optimal for VWAP algorithmic execution.",
+          "Slippage probability on high-beta equity sleeve is within acceptable parameters.",
+        ];
+        actionsList = ["Execute block orders using TWAP slicing over 45-minute window."];
+        sourcesList = ["NSE Level 3 Feeds", "FinOS Microstructure Engine"];
+      } else if (lowerQuery.includes("@report") || lowerQuery.includes("report") || lowerQuery.includes("memo")) {
+        consulted = ["report", "portfolio", "investment"];
+        consensus = 96;
+        responseSummary = `Report Agent generated executive memo synthesizing multi-agent findings for institutional stakeholders.`;
+        findingsList = [
+          "Multi-asset attribution confirmed 68% return driven by asset selection.",
+          "Risk-adjusted Sharpe Ratio calculated at 1.84 YTD.",
+        ];
+        actionsList = ["Click 'Generate Formal Institutional Report' below to export audit-ready PDF."];
+        sourcesList = ["LaTeX Document Core", "FinOS Consolidated State"];
+      } else {
+        responseSummary = `FinOS multi-agent engine synthesized real-time telemetry regarding "${message}". Portfolio risk guardrails and liquidity indexes confirm a balanced posture.`;
+        findingsList = [
+          `Cross-agent reconciliation completed with ${deepReasoning ? "97%" : "92%"} confidence score.`,
+          "Portfolio factor loadings and liquidity guardrails remain within target bounds.",
+          "Sovereign yield curve and macro telemetry cross-verified with official exchange feeds.",
+        ];
+        actionsList = [
+          "Review detailed allocation in the Portfolio workspace.",
+          "Generate an executive dossier to document mathematical attribution.",
+        ];
+        sourcesList = ["Bloomberg B-PIPE", "Refinitiv Eikon", "FinOS GNN Core"];
+      }
+
       const finosMsg: ConversationMessage = {
         id: `f-${Date.now()}`,
         sender: "finos",
-        text: `Based on real-time telemetry across our 10 agents, your query on "${text}" has been reconciled against sovereign filings and multi-asset position tables.`,
+        text: responseSummary,
         timestamp: "Just now",
-        agentsConsulted: ["macro", "risk", "investment", "portfolio"],
-        consensusScore: 92,
-        findings: [
-          "Cross-agent reconciliation completed with 92% weighted confidence.",
-          "Market liquidity indicators and risk guardrails confirm stable risk posture.",
-          "Citations cross-verified with official exchange feeds and treasury data.",
-        ],
-        actions: [
-          "Review updated allocation in the Portfolio workspace.",
-          "Generate an institutional dossier to export full mathematical attribution.",
-        ],
+        agentsConsulted: consulted,
+        consensusScore: consensus,
+        findings: findingsList,
+        actions: actionsList,
+        sources: sourcesList,
+        deepReasoning,
       };
 
       setThreads((prev) =>
@@ -191,249 +321,246 @@ function AskFinOSContent() {
             : t
         )
       );
-      setExpandedFindingsId(finosMsg.id);
-      setIsThinking(false);
-    }, 1800);
+
+      setIsProcessing(false);
+    }, 1900);
   };
 
-  const handleNewThread = () => {
-    const newId = `t-${Date.now()}`;
-    const newThread: Thread = {
-      id: newId,
-      title: "New Financial Inquiry",
-      time: "Just now",
-      messages: [
-        {
-          id: `m-init-${Date.now()}`,
-          sender: "finos",
-          text: "Hello, I am FinOS. Ask any question regarding your portfolio, market shifts, tax liabilities, or upload your payslip for automated analysis.",
-          timestamp: "Just now",
-          agentsConsulted: ["portfolio", "macro", "risk"],
-        },
-      ],
-    };
-    setThreads([newThread, ...threads]);
-    setActiveThreadId(newId);
+  const handleOpenAgentWorkspace = (agentId: AgentId) => {
+    const ag = ALL_AGENTS.find((a) => a.id === agentId);
+    if (ag) {
+      setSelectedAgent(ag);
+      setViewState("agent");
+    }
   };
+
+  const handleStartAgentChat = (agent: Agent, query?: string) => {
+    setSelectedAgent(agent);
+    setViewState("agent");
+    if (query) {
+      handleSendMessage({
+        message: query,
+        deepReasoning: false,
+        attachments: [],
+        selectedAgentId: agent.id,
+      });
+    }
+  };
+
+  const hasMessages = currentThread.messages.length > 0;
 
   return (
-    <AppShell headerTitle="Ask FinOS Workspace" headerSubtitle="Natural-language multi-agent financial reasoning">
-      <div className="bg-white dark:bg-[#0c1222] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden flex flex-col md:flex-row h-[calc(100vh-140px)] min-h-[550px]">
-        {/* Left Column: Conversation History (260px) */}
-        <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800/80 bg-slate-50/60 dark:bg-[#090e1a] flex flex-col justify-between shrink-0">
-          <div>
-            <div className="p-3.5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Inquiry Threads
-              </span>
-              <button
-                onClick={handleNewThread}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>New</span>
-              </button>
-            </div>
+    <AppShell
+      headerTitle="Ask FinOS Workspace"
+      headerSubtitle="Search-First Multi-Agent Financial Intelligence Command Center"
+    >
+      <div className="bg-white dark:bg-[#0c1222] border border-slate-200/90 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-xs overflow-hidden flex flex-col md:flex-row h-[calc(100vh-140px)] min-h-[650px]">
+        {/* Left Sidebar: Inquiry Threads & FinOS 10 Agents Navigation */}
+        <AgentSidebar
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onSelectThread={(id) => {
+            setActiveThreadId(id);
+            const target = threads.find((t) => t.id === id);
+            if (target && target.messages.length > 0) {
+              setViewState("searched");
+            } else if (!selectedAgent) {
+              setViewState("initial");
+            }
+          }}
+          onNewThread={handleNewThread}
+          selectedAgentId={selectedAgent?.id || null}
+          onSelectAgent={handleSelectAgent}
+        />
 
-            <div className="p-2 space-y-1 overflow-y-auto max-h-[calc(100vh-280px)]">
-              {threads.map((t) => {
-                const isActive = t.id === activeThreadId;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setActiveThreadId(t.id)}
-                    className={`w-full p-2.5 rounded-xl text-left transition-all flex items-start gap-2.5 ${
-                      isActive
-                        ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs border border-slate-200 dark:border-slate-700 font-semibold"
-                        : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <MessageSquare className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${isActive ? "text-emerald-500" : "text-slate-400"}`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs truncate">{t.title}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">{t.time}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="p-3 border-t border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>Audit-indexed GraphRAG</span>
-          </div>
-        </div>
-
-        {/* Right Column: Chat Stream & Message Input */}
-        <div className="flex-1 flex flex-col justify-between h-full bg-white dark:bg-[#0c1222]">
-          {/* Messages Stream */}
-          <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-5">
-            {currentThread.messages.map((msg) => {
-              const isUser = msg.sender === "user";
-              const isFindingsExpanded = expandedFindingsId === msg.id;
-
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}
+        {/* Main Workspace Canvas */}
+        <div className="flex-1 flex flex-col justify-between h-full min-w-0 bg-white dark:bg-[#0c1222] relative overflow-hidden">
+          {/* Workspace Header Top Bar */}
+          <div className="px-4 py-3 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/60 flex items-center justify-between gap-4 shrink-0 z-10 transition-all duration-300">
+            {/* Left: View State Badge / Back Button */}
+            {viewState === "agent" && selectedAgent ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setViewState("searched")}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs"
                 >
-                  {/* Avatar */}
-                  <div
-                    className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold ${
-                      isUser
-                        ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
-                        : "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
-                    }`}
-                  >
-                    {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                  </div>
-
-                  {/* Message Bubble */}
-                  <div className={`space-y-2 max-w-2xl ${isUser ? "text-right" : "text-left"}`}>
-                    <div
-                      className={`inline-block p-4 rounded-2xl text-xs sm:text-sm leading-relaxed ${
-                        isUser
-                          ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded-tr-xs"
-                          : "bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-white rounded-tl-xs shadow-2xs"
-                      }`}
-                    >
-                      {msg.text}
-                    </div>
-
-                    {/* Agent metadata & findings accordion for FinOS responses */}
-                    {!isUser && msg.agentsConsulted && (
-                      <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs space-y-2.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] uppercase font-bold text-slate-400">
-                              Agents Consulted:
-                            </span>
-                            <div className="flex flex-wrap gap-1">
-                              {msg.agentsConsulted.map((aId) => {
-                                const ag = ALL_AGENTS.find((a) => a.id === aId);
-                                return (
-                                  <span
-                                    key={aId}
-                                    className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                                  >
-                                    {ag?.name || aId}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {msg.consensusScore && (
-                            <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                              {msg.consensusScore}% Consensus
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Collapsible Findings */}
-                        {msg.findings && msg.findings.length > 0 && (
-                          <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                            <button
-                              onClick={() =>
-                                setExpandedFindingsId(isFindingsExpanded ? null : msg.id)
-                              }
-                              className="flex items-center justify-between w-full text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-600 transition"
-                            >
-                              <span>Key Findings &amp; Observations ({msg.findings.length})</span>
-                              {isFindingsExpanded ? (
-                                <ChevronUp className="w-3.5 h-3.5" />
-                              ) : (
-                                <ChevronDown className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-
-                            {isFindingsExpanded && (
-                              <div className="space-y-1.5 mt-2 animate-in fade-in">
-                                {msg.findings.map((f, i) => (
-                                  <div key={i} className="flex items-start gap-2 text-[11px] text-slate-600 dark:text-slate-400">
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                                    <span>{f}</span>
-                                  </div>
-                                ))}
-
-                                {msg.actions && (
-                                  <div className="pt-2 space-y-1">
-                                    <span className="text-[10px] font-bold uppercase text-slate-400">
-                                      Recommended Actions:
-                                    </span>
-                                    {msg.actions.map((act, idx) => (
-                                      <div key={idx} className="flex items-start gap-2 text-[11px] text-slate-800 dark:text-slate-200">
-                                        <ArrowRight className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
-                                        <span>{act}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                <div className="pt-2 text-right">
-                                  <button
-                                    onClick={() => router.push("/reports")}
-                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
-                                  >
-                                    <FileText className="w-3 h-3" />
-                                    <span>Generate Formal Report</span>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>← All Agents</span>
+                </button>
+                <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+                <div className="flex items-center gap-2">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: selectedAgent.accentColor }}
+                  />
+                  <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                    {selectedAgent.name}
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                    ● Workspace Active
+                  </span>
                 </div>
-              );
-            })}
-
-            {isThinking && (
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+              </div>
+            ) : viewState === "searched" ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewState("initial");
+                    setSelectedAgent(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Home</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-emerald-500" />
+                  <span className="text-xs font-black text-slate-900 dark:text-white">
+                    Ask FinOS Multi-Agent Command Center
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="p-1 rounded bg-emerald-500/10 text-emerald-500">
                   <Bot className="w-4 h-4" />
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 font-mono">
-                  <Loader2 className="w-3.5 h-3.5 text-emerald-500 animate-spin" />
-                  <span>Synthesizing multi-agent consensus...</span>
-                </div>
+                <span className="text-xs font-black text-slate-900 dark:text-white tracking-tight">
+                  FinOS Autonomous AI Engine
+                </span>
+              </div>
+            )}
+
+            {/* Right Top Area: Compact Docked Search Bar (Positioned at EXTREME RIGHT SIDE) */}
+            {viewState !== "initial" && (
+              <div className="ml-auto w-full max-w-[420px] shrink-0 animate-in fade-in duration-300">
+                <AskFinOSComposer
+                  onSendMessage={handleSendMessage}
+                  isProcessing={isProcessing}
+                  selectedAgent={selectedAgent}
+                  compact={true}
+                  placeholder={
+                    activeSearchQuery
+                      ? `Query: "${activeSearchQuery.length > 20 ? activeSearchQuery.substring(0, 20) + "..." : activeSearchQuery}" — Search again...`
+                      : "Search finances, markets, risk..."
+                  }
+                  initialText={composerInitialText}
+                />
               </div>
             )}
           </div>
 
-          {/* Bottom Message Input Bar */}
-          <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#0a0f1c]">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage();
-              }}
-              className="flex items-center gap-2 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-inner focus-within:ring-2 focus-within:ring-emerald-500/30 transition"
-            >
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                disabled={isThinking}
-                placeholder="Ask about your portfolio, market events, or specific assets..."
-                className="flex-1 bg-transparent px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none"
-              />
+          {/* Main Content Body */}
+          <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-6">
+            {/* 1. INITIAL STATE: Dominant Centered Search Bar */}
+            {viewState === "initial" && (
+              <div className="flex flex-col items-center justify-center min-h-[500px] py-6 sm:py-12 px-2 text-center animate-in fade-in zoom-in-95 duration-500">
+                {/* Brand Hero Badge */}
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-300 text-xs font-bold mb-4 shadow-2xs">
+                  <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
+                  <span>FinOS Multi-Agent Financial Operating System</span>
+                </div>
 
-              <button
-                type="submit"
-                disabled={!inputText.trim() || isThinking}
-                className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold disabled:opacity-50 transition shadow-2xs shrink-0 cursor-pointer"
-                aria-label="Send Message"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
+                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-950 dark:text-white max-w-3xl leading-tight">
+                  Ask anything about your finances
+                </h1>
+                <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-2 mb-8 max-w-xl leading-relaxed">
+                  Ask anything about your finances, markets, portfolio, risk, taxes or investments.
+                </p>
+
+                {/* Dominant Centered Composer Box */}
+                <div className="w-full max-w-3xl mx-auto transform transition-all duration-300 hover:scale-[1.005]">
+                  <AskFinOSComposer
+                    onSendMessage={handleSendMessage}
+                    isProcessing={isProcessing}
+                    selectedAgent={selectedAgent}
+                    placeholder="Ask anything about your portfolio, risk, market trends, taxes..."
+                    initialText={composerInitialText}
+                  />
+                </div>
+
+                {/* Suggested Prompt Hero Cards below */}
+                <div className="mt-10 w-full">
+                  <SuggestedPromptsHero
+                    onSelectPrompt={(promptText) =>
+                      handleSendMessage({
+                        message: promptText,
+                        deepReasoning: false,
+                        attachments: [],
+                        selectedAgentId: selectedAgent?.id,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 2. SEARCHED STATE: Revealing 10 Agent Cards & Multi-Agent Response Stream */}
+            {viewState === "searched" && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {/* 10 Agent Interactive Cards Grid */}
+                <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800">
+                  <AgentSelectorGrid
+                    onSelectAgent={handleSelectAgent}
+                    activeAgentId={selectedAgent?.id}
+                    searchQuery={activeSearchQuery}
+                  />
+                </div>
+
+                {/* Active Conversation Response Stream */}
+                {hasMessages && (
+                  <div className="space-y-6 pt-4 border-t border-slate-200/80 dark:border-slate-800">
+                    <div className="flex items-center gap-2 px-1">
+                      <Bot className="w-4 h-4 text-emerald-500" />
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Multi-Agent Synthesized Response
+                      </h3>
+                    </div>
+
+                    <div className="space-y-6">
+                      {currentThread.messages.map((msg) => (
+                        <FinOSResponseBubble
+                          key={msg.id}
+                          message={msg}
+                          onOpenAgent={handleOpenAgentWorkspace}
+                        />
+                      ))}
+
+                      {isProcessing && <ThinkingState />}
+
+                      <div ref={messagesEndRef} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 3. SAME-PAGE AGENT WORKSPACE: Selected Agent View */}
+            {viewState === "agent" && selectedAgent && (
+              <AgentWorkspacePanel
+                agent={selectedAgent}
+                onBack={() => setViewState("searched")}
+                onInvolveAgents={(suggestedQuery) => {
+                  handleSendMessage({
+                    message: suggestedQuery,
+                    deepReasoning: true,
+                    attachments: [],
+                  });
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
+
+      {/* Agent Detail Modal Drawer when inspecting an agent directly */}
+      <AgentDetailModal
+        agent={inspectModalAgent}
+        onClose={() => setInspectModalAgent(null)}
+        onStartAgentChat={handleStartAgentChat}
+      />
     </AppShell>
   );
 }
@@ -442,11 +569,13 @@ export default function AskFinOSPage() {
   return (
     <Suspense
       fallback={
-        <AppShell headerTitle="Ask FinOS">
+        <AppShell headerTitle="Ask FinOS Workspace">
           <div className="h-96 flex items-center justify-center">
             <div className="flex flex-col items-center gap-2">
               <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
-              <span className="text-xs font-mono text-slate-400">Loading Ask FinOS Workspace...</span>
+              <span className="text-xs font-mono text-slate-400">
+                Loading Search-First Multi-Agent Workspace...
+              </span>
             </div>
           </div>
         </AppShell>
@@ -456,3 +585,4 @@ export default function AskFinOSPage() {
     </Suspense>
   );
 }
+
