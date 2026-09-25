@@ -1,13 +1,13 @@
 """Factory for instantiating FinOS LLM clients lazily.
 
-Defines create_llm_client to instantiate provider clients without eager imports
-of heavyweight provider SDKs. Full client wiring happens in Phase B2.
+Adapts tradingagents.llm_clients.factory to create provider clients
+without code duplication.
 """
 
 from __future__ import annotations
 
 from typing import Any
-from finos.core.llm.base_client import BaseLLMClient
+from tradingagents.llm_clients.factory import create_llm_client as _create_trading_llm_client
 
 
 def create_llm_client(
@@ -15,8 +15,7 @@ def create_llm_client(
     model: str,
     base_url: str | None = None,
     **kwargs: Any,
-) -> BaseLLMClient:
-    """Create and return a configured BaseLLMClient for the requested provider."""
-    raise NotImplementedError(
-        f"Provider factory for '{provider}' will be connected in Phase B2 migration."
-    )
+) -> Any:
+    """Create and return a configured LLM client for the requested provider."""
+    return _create_trading_llm_client(provider=provider, model=model, base_url=base_url, **kwargs)
+
