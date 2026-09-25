@@ -4,8 +4,7 @@ import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ALL_AGENTS } from "@/lib/mock/agents";
-import { AppHeader } from "@/components/layout/AppHeader";
-import { AppFooter } from "@/components/layout/AppFooter";
+import { AppShell } from "@/components/layout/AppShell";
 import { AgentHeader } from "@/components/agents/AgentHeader";
 import { AgentChat } from "@/components/agents/AgentChat";
 import { AgentAnalysis } from "@/components/agents/AgentAnalysis";
@@ -37,10 +36,8 @@ export default function AgentDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#080c14] text-slate-900 dark:text-white flex flex-col transition-colors duration-300">
-      <AppHeader />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <AppShell headerTitle={agent.name} headerSubtitle={agent.shortDescription}>
+      <div className="space-y-6">
         {/* Agent Top Header Card */}
         <AgentHeader agent={agent} />
 
@@ -123,9 +120,7 @@ export default function AgentDetailPage() {
             <AgentHistory agent={agent} />
           )}
         </div>
-      </main>
-
-      <AppFooter />
-    </div>
+      </div>
+    </AppShell>
   );
 }

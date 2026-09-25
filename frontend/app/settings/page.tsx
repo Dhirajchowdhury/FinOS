@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { AppHeader } from "@/components/layout/AppHeader";
-import { AppFooter } from "@/components/layout/AppFooter";
+import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import {
@@ -38,10 +37,11 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#080c14] text-slate-900 dark:text-white flex flex-col transition-colors duration-300">
-      <AppHeader />
-
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <AppShell
+      headerTitle="Workspace Settings"
+      headerSubtitle="Multi-agent reasoning parameters, API telemetry endpoints, and organizational risk limits"
+    >
+      <div className="space-y-6 max-w-4xl mx-auto">
         {/* Banner */}
         <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -223,9 +223,7 @@ export default function SettingsPage() {
             </button>
           </div>
         </form>
-      </main>
-
-      <AppFooter />
-    </div>
+      </div>
+    </AppShell>
   );
 }

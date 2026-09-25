@@ -2,8 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { AppHeader } from "@/components/layout/AppHeader";
-import { AppFooter } from "@/components/layout/AppFooter";
+import { AppShell } from "@/components/layout/AppShell";
 import { AgentCard } from "@/components/dashboard/AgentCard";
 import { ALL_AGENTS } from "@/lib/mock/agents";
 import { AgentCategory } from "@/types/agent";
@@ -47,10 +46,11 @@ export default function AgentsDirectoryPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#080c14] text-slate-900 dark:text-white flex flex-col transition-colors duration-300">
-      <AppHeader />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <AppShell
+      headerTitle="AI Agents Directory"
+      headerSubtitle="All 10 specialized autonomous units with dedicated latency SLAs and model engines"
+    >
+      <div className="space-y-6">
         {/* Directory Header Banner */}
         <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -228,9 +228,7 @@ export default function AgentsDirectoryPage() {
             </table>
           </div>
         )}
-      </main>
-
-      <AppFooter />
-    </div>
+      </div>
+    </AppShell>
   );
 }

@@ -18,14 +18,14 @@ export function AgentGrid({ agents }: AgentGridProps) {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-              AI Agents
+              Our AI Agents
             </h2>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
               10 Online
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Choose an agent to get started, or let multiple agents collaborate for deeper analysis.
+            Specialized agents working together to give you comprehensive financial insights
           </p>
         </div>
 

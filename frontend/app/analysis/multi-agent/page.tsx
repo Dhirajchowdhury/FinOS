@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { AppHeader } from "@/components/layout/AppHeader";
-import { AppFooter } from "@/components/layout/AppFooter";
+import { AppShell } from "@/components/layout/AppShell";
 import { PipelineVisualizer } from "@/components/analysis/PipelineVisualizer";
 import { SignalMatrix } from "@/components/analysis/SignalMatrix";
 import { UnifiedInsight } from "@/components/analysis/UnifiedInsight";
@@ -64,10 +63,11 @@ function MultiAgentContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#080c14] text-slate-900 dark:text-white flex flex-col transition-colors duration-300">
-      <AppHeader />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <AppShell
+      headerTitle="Multi-Agent Collaborative Intelligence"
+      headerSubtitle="Concurrent agent consensus, signal synthesis, and conflict resolution engine"
+    >
+      <div className="space-y-6 max-w-7xl mx-auto">
         {/* Banner */}
         <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -185,10 +185,8 @@ function MultiAgentContent() {
 
         {/* Final Consensus & Unified Insight */}
         <UnifiedInsight scenario={currentScenario} />
-      </main>
-
-      <AppFooter />
-    </div>
+      </div>
+    </AppShell>
   );
 }
 

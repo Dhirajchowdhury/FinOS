@@ -24,6 +24,28 @@ export const MOCK_INDICES: MarketIndex[] = [
     region: "India",
   },
   {
+    symbol: "USD/INR",
+    name: "US Dollar / Indian Rupee",
+    value: 83.74,
+    change: -0.12,
+    changePercent: -0.14,
+    sparkline: [83.92, 83.88, 83.85, 83.8, 83.78, 83.75, 83.74],
+    high52: 84.15,
+    low52: 82.8,
+    region: "Global",
+  },
+  {
+    symbol: "Gold (10g)",
+    name: "MCX Gold Spot 24K",
+    value: 75420.0,
+    change: 410.0,
+    changePercent: 0.55,
+    sparkline: [74800, 74950, 75100, 75050, 75200, 75350, 75420],
+    high52: 76000.0,
+    low52: 58500.0,
+    region: "India",
+  },
+  {
     symbol: "NASDAQ",
     name: "NASDAQ Composite",
     value: 18190.3,
@@ -59,13 +81,13 @@ export const MOCK_SECTORS: SectorPerformance[] = [
 export const MOCK_NEWS: MarketNewsItem[] = [
   {
     id: "news-1",
-    title: "RBI MPC Deliberates Stance Shift as Inflation Softens Toward 4% Target",
-    summary: "Monetary Policy Committee minutes highlight favorable monsoon conditions and cooling food inflation, opening room for potential liquidity easing in upcoming cycles.",
-    source: "Bloomberg Quint",
+    title: "RBI Holds Repo Rate at 6.50% Citing Core Inflation Moderation",
+    summary: "The Monetary Policy Committee voted unanimously to maintain the benchmark lending rate, observing that headline inflation is steadily approaching the 4% target while domestic growth remains robust.",
+    source: "LiveMint",
     timeAgo: "18m ago",
     sentiment: "Positive",
     sentimentScore: 84,
-    relatedTickers: ["HDFCBANK", "SBIN", "ICICIBANK"],
+    relatedTickers: ["HDFCBANK", "ICICIBANK", "SBIN"],
     relevanceToPortfolio: true,
   },
   {
@@ -110,4 +132,6 @@ export const MOCK_WATCHLIST: WatchlistItem[] = [
   { symbol: "INFY", name: "Infosys Ltd", price: 1895.0, change: 35.0, changePercent: 1.88, volume: "6.1M", signal: "Buy" },
   { symbol: "BHARTIARTL", name: "Bharti Airtel Ltd", price: 1640.0, change: 18.0, changePercent: 1.11, volume: "3.5M", signal: "Buy" },
   { symbol: "NVDA", name: "NVIDIA Corp (US)", price: 135.5, change: 4.2, changePercent: 3.2, volume: "48M", signal: "Hold" },
+  { symbol: "TATAMOTORS", name: "Tata Motors Passenger & EV", price: 985.4, change: 14.2, changePercent: 1.46, volume: "5.8M", signal: "Buy" },
+  { symbol: "ITC", name: "ITC Ltd", price: 492.2, change: 3.1, changePercent: 0.63, volume: "8.1M", signal: "Hold" },
 ];

@@ -2,8 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { AppHeader } from "@/components/layout/AppHeader";
-import { AppFooter } from "@/components/layout/AppFooter";
+import { AppShell } from "@/components/layout/AppShell";
 import { PerformanceChart } from "@/components/portfolio/PerformanceChart";
 import { AllocationDonut } from "@/components/portfolio/AllocationDonut";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
@@ -35,10 +34,11 @@ export default function PortfolioPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#080c14] text-slate-900 dark:text-white flex flex-col transition-colors duration-300">
-      <AppHeader />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <AppShell
+      headerTitle="Portfolio Analytics"
+      headerSubtitle="Multi-asset holdings, factor risk attribution, and NAV reconciliation"
+    >
+      <div className="space-y-6">
         {/* Portfolio Banner */}
         <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -204,9 +204,7 @@ export default function PortfolioPage() {
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
-      </main>
-
-      <AppFooter />
-    </div>
+      </div>
+    </AppShell>
   );
 }
