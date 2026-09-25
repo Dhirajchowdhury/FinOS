@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, Bot, Check, Loader2, ArrowRight } from "lucide-react";
 import { ALL_AGENTS } from "@/lib/mock/agents";
+import { modalBackdropVariants, modalContentVariants } from "@/lib/motion";
 
 interface GenerateReportModalProps {
   isOpen: boolean;
@@ -20,8 +22,6 @@ export function GenerateReportModal({ isOpen, onClose, onGenerated }: GenerateRe
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressStage, setProgressStage] = useState("");
-
-  if (!isOpen) return null;
 
   const toggleAgent = (id: string) => {
     if (selectedAgents.includes(id)) {
@@ -53,8 +53,24 @@ export function GenerateReportModal({ isOpen, onClose, onGenerated }: GenerateRe
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          variants={modalBackdropVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          onClick={onClose}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs"
+        >
+          <motion.div
+            variants={modalContentVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative"
+          >
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -172,7 +188,9 @@ export function GenerateReportModal({ isOpen, onClose, onGenerated }: GenerateRe
             </div>
           </div>
         )}
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

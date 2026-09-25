@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 import { Holding } from "@/types/portfolio";
 import { Search, ArrowUpDown, TrendingUp, TrendingDown, Shield } from "lucide-react";
 
@@ -80,17 +81,18 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
           {/* Class Filter */}
           <div className="flex items-center gap-1 overflow-x-auto py-1">
             {assetClasses.map((ac) => (
-              <button
+              <motion.button
                 key={ac}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setSelectedAssetClass(ac)}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-colors ${
                   selectedAssetClass === ac
-                    ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900"
+                    ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xs"
                     : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 {ac}
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
@@ -101,37 +103,37 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
             <tr>
-              <th className="py-3 px-4 font-semibold cursor-pointer" onClick={() => handleSort("symbol")}>
+              <th className="py-3 px-4 font-semibold cursor-pointer select-none hover:text-slate-800 dark:hover:text-slate-200" onClick={() => handleSort("symbol")}>
                 <div className="flex items-center gap-1.5">
                   <span>Instrument / Asset</span>
                   <ArrowUpDown className="w-3 h-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3 px-4 font-semibold cursor-pointer" onClick={() => handleSort("assetClass")}>
+              <th className="py-3 px-4 font-semibold cursor-pointer select-none hover:text-slate-800 dark:hover:text-slate-200" onClick={() => handleSort("assetClass")}>
                 Asset Class
               </th>
-              <th className="py-3 px-4 font-semibold text-right cursor-pointer" onClick={() => handleSort("shares")}>
+              <th className="py-3 px-4 font-semibold text-right cursor-pointer select-none hover:text-slate-800 dark:hover:text-slate-200" onClick={() => handleSort("shares")}>
                 Shares
               </th>
-              <th className="py-3 px-4 font-semibold text-right cursor-pointer" onClick={() => handleSort("avgPrice")}>
+              <th className="py-3 px-4 font-semibold text-right cursor-pointer select-none hover:text-slate-800 dark:hover:text-slate-200" onClick={() => handleSort("avgPrice")}>
                 Avg Price
               </th>
-              <th className="py-3 px-4 font-semibold text-right cursor-pointer" onClick={() => handleSort("currentPrice")}>
+              <th className="py-3 px-4 font-semibold text-right cursor-pointer select-none hover:text-slate-800 dark:hover:text-slate-200" onClick={() => handleSort("currentPrice")}>
                 Market Price
               </th>
-              <th className="py-3 px-4 font-semibold text-right cursor-pointer" onClick={() => handleSort("totalValue")}>
+              <th className="py-3 px-4 font-semibold text-right cursor-pointer select-none hover:text-slate-800 dark:hover:text-slate-200" onClick={() => handleSort("totalValue")}>
                 <div className="flex items-center justify-end gap-1.5">
                   <span>Current Value</span>
                   <ArrowUpDown className="w-3 h-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3 px-4 font-semibold text-right cursor-pointer" onClick={() => handleSort("unrealizedPnL")}>
+              <th className="py-3 px-4 font-semibold text-right cursor-pointer select-none hover:text-slate-800 dark:hover:text-slate-200" onClick={() => handleSort("unrealizedPnL")}>
                 <div className="flex items-center justify-end gap-1.5">
                   <span>Unrealized P&L</span>
                   <ArrowUpDown className="w-3 h-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-3 px-4 font-semibold text-center cursor-pointer" onClick={() => handleSort("riskScore")}>
+              <th className="py-3 px-4 font-semibold text-center cursor-pointer select-none hover:text-slate-800 dark:hover:text-slate-200" onClick={() => handleSort("riskScore")}>
                 Risk Guard
               </th>
             </tr>
@@ -147,9 +149,12 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               filteredHoldings.map((h) => {
                 const isPositive = h.unrealizedPnL >= 0;
                 return (
-                  <tr
+                  <motion.tr
                     key={h.id}
-                    className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors group"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors group cursor-default"
                   >
                     <td className="py-3.5 px-4">
                       <div className="flex flex-col">
@@ -219,7 +224,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                         {h.riskScore}
                       </span>
                     </td>
-                  </tr>
+                  </motion.tr>
                 );
               })
             )}

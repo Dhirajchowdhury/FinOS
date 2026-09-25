@@ -1,8 +1,10 @@
 "use client";
 
 import React from "react";
+import { motion } from "framer-motion";
 import { MarketIndex } from "@/types/market";
-import { TrendingUp, TrendingDown, Globe } from "lucide-react";
+import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 interface IndexTickerProps {
   indices: MarketIndex[];
@@ -11,9 +13,8 @@ interface IndexTickerProps {
 export function IndexTicker({ indices }: IndexTickerProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {indices.map((idx) => {
+      {indices.map((idx, index) => {
         const isPositive = idx.change >= 0;
-        // Simple SVG sparkline path calculation
         const minVal = Math.min(...idx.sparkline);
         const maxVal = Math.max(...idx.sparkline);
         const range = maxVal - minVal || 1;
@@ -28,9 +29,13 @@ export function IndexTicker({ indices }: IndexTickerProps) {
           .join(" ");
 
         return (
-          <div
+          <motion.div
             key={idx.symbol}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: index * 0.05 }}
+            whileHover={{ y: -2 }}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition-all flex flex-col justify-between cursor-default"
           >
             <div className="flex items-start justify-between">
               <div>
@@ -50,7 +55,10 @@ export function IndexTicker({ indices }: IndexTickerProps) {
               {/* Sparkline mini chart */}
               <div className="w-20 h-7 shrink-0">
                 <svg viewBox="0 0 100 28" className="w-full h-full overflow-visible">
-                  <polyline
+                  <motion.polyline
+                    initial={{ pathLength: 0, opacity: 0.4 }}
+                    animate={{ pathLength: 1, opacity: 1 }}
+                    transition={{ duration: 0.8, ease: "easeOut", delay: index * 0.05 }}
                     fill="none"
                     stroke={isPositive ? "#10b981" : "#ef4444"}
                     strokeWidth="2"
@@ -64,7 +72,7 @@ export function IndexTicker({ indices }: IndexTickerProps) {
 
             <div className="mt-3 flex items-baseline justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
               <span className="text-lg font-extrabold text-slate-900 dark:text-white font-mono">
-                {idx.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <AnimatedNumber value={idx.value} decimals={2} durationMs={800} />
               </span>
               <div
                 className={`flex items-center gap-1 text-xs font-bold font-mono ${
@@ -83,7 +91,7 @@ export function IndexTicker({ indices }: IndexTickerProps) {
               <span>52W L: {idx.low52.toLocaleString()}</span>
               <span>52W H: {idx.high52.toLocaleString()}</span>
             </div>
-          </div>
+          </motion.div>
         );
       })}
     </div>

@@ -6,6 +6,8 @@ import { Search, X, Bot, TrendingUp, FileText, ArrowRight, Shield } from "lucide
 import { MOCK_AGENTS } from "@/lib/mock/agents";
 import { MOCK_HOLDINGS } from "@/lib/mock/portfolio";
 import { MOCK_REPORTS } from "@/lib/mock/reports";
+import { MOCK_ANALYSIS_RECORDS } from "@/lib/mock/analysis";
+import { History } from "lucide-react";
 
 interface GlobalSearchProps {
   isOpen: boolean;
@@ -59,6 +61,15 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
       r.type.toLowerCase().includes(cleanQuery)
   ).slice(0, 3);
 
+  // Filter Analyses
+  const matchedAnalyses = MOCK_ANALYSIS_RECORDS.filter(
+    (a) =>
+      !cleanQuery ||
+      a.title.toLowerCase().includes(cleanQuery) ||
+      a.query.toLowerCase().includes(cleanQuery) ||
+      a.type.toLowerCase().includes(cleanQuery)
+  ).slice(0, 3);
+
   const handleSelect = (url: string) => {
     onClose();
     router.push(url);
@@ -77,7 +88,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search agents, portfolio holdings, reports, scenarios..."
+            placeholder="Search anything..."
             autoFocus
             className="flex-1 bg-transparent text-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none"
           />
@@ -214,6 +225,37 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
                       </span>
                     </div>
                     <span className="text-[10px] text-slate-400 shrink-0">{r.generatedDate}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Analysis History Results */}
+          {matchedAnalyses.length > 0 && (
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2">
+                Analysis History ({matchedAnalyses.length})
+              </span>
+              <div className="space-y-1 mt-1.5">
+                {matchedAnalyses.map((an) => (
+                  <button
+                    key={an.id}
+                    onClick={() => handleSelect(`/analysis/${an.id}`)}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/70 text-left transition"
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <History className="w-4 h-4 text-purple-500 shrink-0" />
+                      <div className="truncate">
+                        <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
+                          {an.title}
+                        </div>
+                        <div className="text-[10px] text-slate-400 truncate">
+                          {an.query}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-400 shrink-0 ml-2">{an.date}</span>
                   </button>
                 ))}
               </div>

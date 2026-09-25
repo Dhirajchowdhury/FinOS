@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { AppShell } from "@/components/layout/AppShell";
 import { AgentCard } from "@/components/dashboard/AgentCard";
 import { ALL_AGENTS } from "@/lib/mock/agents";
@@ -87,13 +88,20 @@ export default function AgentsDirectoryPage() {
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${
+                className={`relative px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${
                   selectedCategory === cat
-                    ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
-                    : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-slate-300"
+                    ? "text-slate-900 dark:text-white"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                {cat}
+                {selectedCategory === cat && (
+                  <motion.div
+                    layoutId="activeCategoryPill"
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    className="absolute inset-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs -z-0"
+                  />
+                )}
+                <span className="relative z-10">{cat}</span>
               </button>
             ))}
           </div>
@@ -115,7 +123,7 @@ export default function AgentsDirectoryPage() {
             <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg p-0.5 bg-white dark:bg-slate-900">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`p-1.5 rounded-md ${
+                className={`p-1.5 rounded-md transition-colors ${
                   viewMode === "grid"
                     ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
                     : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -126,7 +134,7 @@ export default function AgentsDirectoryPage() {
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`p-1.5 rounded-md ${
+                className={`p-1.5 rounded-md transition-colors ${
                   viewMode === "list"
                     ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
                     : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -149,14 +157,20 @@ export default function AgentsDirectoryPage() {
             </p>
           </div>
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <motion.div
+            layout
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+          >
             {filteredAgents.map((agent) => (
               <AgentCard key={agent.id} agent={agent} />
             ))}
-          </div>
+          </motion.div>
         ) : (
           /* Institutional List Table */
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+          <motion.div
+            layout
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs"
+          >
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 border-b border-slate-100 dark:border-slate-800">
                 <tr>
@@ -226,7 +240,7 @@ export default function AgentsDirectoryPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </motion.div>
         )}
       </div>
     </AppShell>

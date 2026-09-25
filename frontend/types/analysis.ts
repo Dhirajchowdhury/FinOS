@@ -53,3 +53,44 @@ export interface MultiAgentRunProgress {
   progressPercent: number;
   currentActivity: string;
 }
+
+export interface AnalysisHistoryRecord {
+  id: string;
+  title: string;
+  query: string;
+  type: "Stocks" | "Markets" | "Portfolio" | "Risk" | "Tax" | "Payslip" | "Reports" | "Credit" | "Fraud";
+  agentsUsed: string[];
+  date: string;
+  timestamp: string;
+  status: "Completed" | "Processing" | "Archived";
+  summary: string;
+  keyFindings: string[];
+  marketInfo?: {
+    symbol?: string;
+    price?: string;
+    change?: string;
+    peRatio?: string;
+    marketCap?: string;
+    volume?: string;
+  };
+  news?: {
+    headline: string;
+    sentiment: "Positive" | "Neutral" | "Negative";
+    source: string;
+    time: string;
+  }[];
+  riskFactors: {
+    factor: string;
+    impact: "High" | "Medium" | "Low";
+    description: string;
+  }[];
+  investmentInsights: string[];
+  agentContributions: {
+    agent: string;
+    role: string;
+    insight: string;
+    confidence: number;
+  }[];
+  suggestedActions: string[];
+}
+

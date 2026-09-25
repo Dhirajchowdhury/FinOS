@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -40,13 +41,20 @@ export function PerformanceChart() {
             <button
               key={tf}
               onClick={() => setTimeframe(tf)}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`relative px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
                 timeframe === tf
-                  ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
+                  ? "text-emerald-600 dark:text-emerald-400"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              {tf}
+              {timeframe === tf && (
+                <motion.div
+                  layoutId="activePerformanceTimeframe"
+                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  className="absolute inset-0 bg-white dark:bg-slate-900 rounded-md shadow-xs -z-0"
+                />
+              )}
+              <span className="relative z-10">{tf}</span>
             </button>
           ))}
         </div>

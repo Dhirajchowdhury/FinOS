@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { MarketNewsItem } from "@/types/market";
 import { Newspaper, ArrowUpRight, Bot, Filter, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
@@ -35,21 +36,36 @@ export function NewsFeed({ news }: NewsFeedProps) {
             <button
               key={s}
               onClick={() => setFilterSentiment(s)}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`relative px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
                 filterSentiment === s
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  ? "text-slate-900 dark:text-white"
                   : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              {s}
+              {filterSentiment === s && (
+                <motion.div
+                  layoutId="activeSentimentFilter"
+                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  className="absolute inset-0 bg-white dark:bg-slate-900 rounded-md shadow-xs -z-0"
+                />
+              )}
+              <span className="relative z-10">{s}</span>
             </button>
           ))}
         </div>
       </div>
 
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
-        {filteredNews.map((item) => (
-          <div key={item.id} className="py-4 first:pt-1 last:pb-1 group">
+        <AnimatePresence mode="popLayout">
+          {filteredNews.map((item) => (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2 }}
+              className="py-4 first:pt-1 last:pb-1 group"
+            >
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1.5 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -101,8 +117,9 @@ export function NewsFeed({ news }: NewsFeedProps) {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         ))}
+        </AnimatePresence>
       </div>
     </div>
   );

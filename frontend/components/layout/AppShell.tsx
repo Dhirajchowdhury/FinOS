@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Sparkles,
 } from "lucide-react";
+import { PageTransition } from "@/components/motion/PageTransition";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -36,13 +37,39 @@ export function AppShell({ children, headerTitle, headerSubtitle }: AppShellProp
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Global Ctrl+K shortcut
+  // Load persisted sidebar state
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("finos-sidebar-collapsed");
+      if (saved !== null) {
+        setIsSidebarCollapsed(saved === "true");
+      }
+    } catch (e) {
+      // safe fallback
+    }
+  }, []);
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("finos-sidebar-collapsed", String(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
+  // Global Ctrl+K (search) & Ctrl+B (toggle sidebar) shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setIsSearchOpen((prev) => !prev);
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        handleToggleSidebar();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -86,9 +113,16 @@ export function AppShell({ children, headerTitle, headerSubtitle }: AppShellProp
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#070b14] text-slate-900 dark:text-slate-100 flex transition-colors duration-300">
-      {/* Desktop Sidebar (Fixed 256px) */}
-      <div className="hidden lg:block w-64 shrink-0 h-screen sticky top-0 z-30">
-        <AppSidebar />
+      {/* Desktop Sidebar (Collapsible 256px <-> 72px) */}
+      <div
+        className={`hidden lg:block shrink-0 h-screen sticky top-0 z-30 transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden ${
+          isSidebarCollapsed ? "w-[72px]" : "w-64"
+        }`}
+      >
+        <AppSidebar
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
+        />
       </div>
 
       {/* Mobile Drawer Backdrop & Sidebar */}
@@ -99,7 +133,10 @@ export function AppShell({ children, headerTitle, headerSubtitle }: AppShellProp
             onClick={() => setIsMobileMenuOpen(false)}
           />
           <div className="relative z-10 w-64 h-full animate-in slide-in-from-left duration-200">
-            <AppSidebar onCloseMobile={() => setIsMobileMenuOpen(false)} />
+            <AppSidebar
+              isCollapsed={false}
+              onCloseMobile={() => setIsMobileMenuOpen(false)}
+            />
           </div>
         </div>
       )}
@@ -151,9 +188,9 @@ export function AppShell({ children, headerTitle, headerSubtitle }: AppShellProp
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700 transition shadow-2xs"
             >
               <Search className="w-3.5 h-3.5 text-slate-400" />
-              <span className="hidden md:inline">Quick Search...</span>
+              <span className="hidden md:inline">Search anything...</span>
               <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400">
-                ⌘K
+                Ctrl + K
               </kbd>
             </button>
 
@@ -278,7 +315,7 @@ export function AppShell({ children, headerTitle, headerSubtitle }: AppShellProp
 
         {/* Dynamic Page Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {children}
+          <PageTransition>{children}</PageTransition>
         </main>
       </div>
 
