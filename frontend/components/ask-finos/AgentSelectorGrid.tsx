@@ -65,7 +65,7 @@ export function AgentSelectorGrid({
           </div>
         </div>
         <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-extrabold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">
-          ● 10 Autonomous Units Active
+          ● 10 FinOS Domain Agents
         </span>
       </div>
 
@@ -124,13 +124,13 @@ export function AgentSelectorGrid({
 
                   {!isRelevant && (
                     <div className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       <span
                         className={`text-[9px] font-mono font-bold ${
                           isSelected ? "text-slate-300" : "text-slate-400"
                         }`}
                       >
-                        Online
+                        Ready
                       </span>
                     </div>
                   )}

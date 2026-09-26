@@ -6,10 +6,12 @@ from app.core.config import settings
 from app.db.session import engine, Base
 from app.api.auth import router as auth_router
 from app.api.analysis import router as analysis_router
+from app.api.reports import router as reports_router
 
 # Ensure models are imported so SQLAlchemy metadata registers them
 import app.models.user
 import app.models.otp
+import app.models.analysis_record
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,6 +34,9 @@ allowed_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://[::1]:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://[::1]:3001",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
@@ -47,9 +52,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Authentication & Analysis Routers
+# Include Authentication, Analysis & Reports Routers
 app.include_router(auth_router)
 app.include_router(analysis_router)
+app.include_router(reports_router)
 
 @app.get("/", tags=["System"])
 def root():

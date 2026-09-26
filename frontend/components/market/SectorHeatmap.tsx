@@ -10,6 +10,16 @@ interface SectorHeatmapProps {
 }
 
 export function SectorHeatmap({ sectors }: SectorHeatmapProps) {
+  if (!sectors || sectors.length === 0) {
+    return (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs text-center space-y-1">
+        <h3 className="text-base font-bold text-slate-900 dark:text-white">Sector Momentum &amp; Heatmap</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+          Sector performance data unavailable. Sector momentum pipeline is offline.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs">
       <div className="flex items-center justify-between mb-4">

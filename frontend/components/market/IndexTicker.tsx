@@ -11,6 +11,18 @@ interface IndexTickerProps {
 }
 
 export function IndexTicker({ indices }: IndexTickerProps) {
+  if (!indices || indices.length === 0) {
+    return (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs text-center space-y-1">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+          Global &amp; Domestic Indices
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+          Market index data unavailable. Real-time exchange ticker pipeline is offline.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {indices.map((idx, index) => {

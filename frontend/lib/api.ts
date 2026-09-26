@@ -1,8 +1,9 @@
 import { User, RequestOtpResponse, VerifyOtpResponse, GoogleAuthUrlResponse } from "@/types/auth";
 
-const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-// Normalize localhost to 127.0.0.1 to prevent Windows IPv6 [::1] connection refused
-export const API_BASE_URL = RAW_API_URL.replace("://localhost:", "://127.0.0.1:");
+export const API_BASE_URL =
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_API_URL || "/api/backend")
+    : (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000");
 
 /**
  * Custom application error with user-friendly formatting.
@@ -93,6 +94,33 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  /**
+   * Register a new user with email, password, and optional name.
+   */
+  async register(name: string, email: string, password: string): Promise<User> {
+    return request<User>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: name.trim() || undefined,
+        email: email.trim().toLowerCase(),
+        password,
+      }),
+    });
+  },
+
+  /**
+   * Authenticate user with email and password.
+   */
+  async login(email: string, password: string): Promise<User> {
+    return request<User>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password,
+      }),
+    });
+  },
+
   /**
    * Request a 6-digit OTP sent to the given email address.
    */

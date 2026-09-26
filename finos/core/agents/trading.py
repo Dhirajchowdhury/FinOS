@@ -87,6 +87,7 @@ class TradingAgent(FinOSDomainAgent):
                 "company_of_interest": ticker,
                 "asset_type": agent_input.entity_type,
                 "trade_date": as_of_date,
+                "user_query": agent_input.request,
                 "investment_plan": invest_summary or "Evaluation plan",
                 "market_report": context.get("market_report", ""),
                 "portfolio_context": context.get("portfolio_context", ""),

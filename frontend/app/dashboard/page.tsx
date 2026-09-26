@@ -8,6 +8,7 @@ import { AgentGrid } from "@/components/dashboard/AgentGrid";
 import { AnalysisHistorySection } from "@/components/dashboard/AnalysisHistorySection";
 import { ALL_AGENTS } from "@/lib/mock/agents";
 import { useAuth } from "@/hooks/useAuth";
+import { getUserDisplayName } from "@/lib/utils";
 
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/lib/motion";
@@ -22,7 +23,7 @@ export default function DashboardPage() {
     return "Good Evening";
   }, []);
 
-  const displayName = user?.name?.split(" ")[0] || "Anuj";
+  const displayName = getUserDisplayName(user).split(" ")[0];
 
   return (
     <AppShell>

@@ -20,7 +20,7 @@ function CallbackContent() {
       return;
     }
 
-    // Successfully returned from Google OAuth; check session and redirect
+    // Check session and redirect to dashboard
     checkSession().then((user) => {
       if (user) {
         router.push("/dashboard");

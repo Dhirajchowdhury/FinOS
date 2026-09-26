@@ -100,6 +100,7 @@ class RiskAgent(FinOSDomainAgent):
                 "company_of_interest": ticker,
                 "asset_type": agent_input.entity_type,
                 "trade_date": as_of_date,
+                "user_query": agent_input.request,
                 "investment_plan": invest_thesis or "Standard plan",
                 "trader_investment_plan": context.get("trader_investment_plan", "Standard trader proposal"),
                 "past_context": context.get("past_context", ""),

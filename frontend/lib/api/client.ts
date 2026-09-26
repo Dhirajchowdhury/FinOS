@@ -3,9 +3,10 @@
  * Centralizes all network communication between Next.js and the FastAPI backend.
  */
 
-const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-// Normalize localhost to 127.0.0.1 to prevent Windows IPv6 [::1] connection issues
-export const API_BASE_URL = RAW_API_URL.replace("://localhost:", "://127.0.0.1:");
+export const API_BASE_URL =
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_API_URL || "/api/backend")
+    : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 
 export class FinOSApiError extends Error {
   status: number;

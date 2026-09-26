@@ -122,7 +122,15 @@ export default function WatchlistPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filtered.map((item) => {
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-xs text-slate-500 font-mono">
+                      No instruments in watchlist yet. Click &quot;Add Symbol&quot; to monitor custom assets.
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((item) => {
+
                   const isPositive = item.change >= 0;
                   return (
                     <tr
@@ -196,8 +204,10 @@ export default function WatchlistPage() {
                       </td>
                     </tr>
                   );
-                })}
+                })
+              )}
               </tbody>
+
             </table>
           </div>
         </div>

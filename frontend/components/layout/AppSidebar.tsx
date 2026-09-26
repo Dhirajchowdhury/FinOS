@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import { getUserDisplayName, getUserInitials } from "@/lib/utils";
 import {
   LayoutDashboard,
   Sparkles,
@@ -55,14 +56,9 @@ export function AppSidebar({
     { label: "Settings", href: "/settings", icon: Settings },
   ];
 
-  const userName = user?.name || "Anuj Kumar Singh";
-  const userEmail = user?.email || "anuj.singh@finos.ai";
-  const userInitials = userName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const userName = getUserDisplayName(user);
+  const userEmail = user?.email || "";
+  const userInitials = getUserInitials(user);
 
   const isItemActive = (href: string) => {
     if (href === "/dashboard") {

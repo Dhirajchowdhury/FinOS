@@ -97,7 +97,7 @@ export default function PortfolioPage() {
           >
             <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Portfolio Value</div>
             <div className="text-2xl font-black text-slate-950 dark:text-white font-mono mt-1">
-              <AnimatedNumber value={8871765} prefix="₹" formatIndian durationMs={900} />
+              {summary.totalValue > 0 ? `₹${summary.totalValue.toLocaleString("en-IN")}` : "Data unavailable"}
             </div>
             <div className="text-[11px] text-slate-400 font-mono mt-0.5">Updated {summary.lastUpdated}</div>
           </motion.div>
@@ -107,10 +107,10 @@ export default function PortfolioPage() {
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
           >
             <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Day P&amp;L (Today)</div>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
-              <AnimatedNumber value={124350} prefix="+₹" formatIndian durationMs={900} />
+            <div className="text-2xl font-black text-slate-400 font-mono mt-1">
+              N/A
             </div>
-            <div className="text-[11px] font-bold text-emerald-600 font-mono mt-0.5">+1.42% Active Return</div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">Brokerage feed disconnected</div>
           </motion.div>
 
           <motion.div
@@ -118,10 +118,10 @@ export default function PortfolioPage() {
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
           >
             <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">All-Time Unrealized Gain</div>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
-              <AnimatedNumber value={1771765} prefix="+₹" formatIndian durationMs={900} />
+            <div className="text-2xl font-black text-slate-400 font-mono mt-1">
+              N/A
             </div>
-            <div className="text-[11px] font-bold text-emerald-600 font-mono mt-0.5">+24.95% Cumulative</div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">No holdings linked</div>
           </motion.div>
 
           <motion.div
@@ -129,12 +129,13 @@ export default function PortfolioPage() {
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
           >
             <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Liquid Cash &amp; Reserves</div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white font-mono mt-1">
-              <AnimatedNumber value={354200} prefix="₹" formatIndian durationMs={900} />
+            <div className="text-2xl font-black text-slate-400 font-mono mt-1">
+              N/A
             </div>
-            <div className="text-[11px] text-slate-500 font-mono mt-0.5">4.0% Ready Dry Powder</div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">Treasury feed offline</div>
           </motion.div>
         </motion.div>
+
 
         {/* Risk Guardrails & Statistical Factor Loadings */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs">

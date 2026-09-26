@@ -290,11 +290,12 @@ export function AskFinOSHero() {
               <div>
                 <div className="flex flex-wrap items-center gap-2 mb-1.5">
                   <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white">
-                    Unified FinOS Consensus
+                    Unified FinOS Analysis Confidence
                   </span>
                   <span className="text-xs font-mono text-emerald-700 dark:text-emerald-300 font-bold">
-                    {activeAnalysisResult.consensusScore}% Agreement Score
+                    {activeAnalysisResult.consensusScore}% Confidence Score
                   </span>
+
                 </div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
                   {activeAnalysisResult.verdict}

@@ -24,9 +24,19 @@ class UserResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class RegisterRequest(BaseModel):
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=6, description="User password (min 6 characters)")
+    name: Optional[str] = Field(None, description="User full name")
+
+class LoginRequest(BaseModel):
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=1, description="User password")
+
 class VerifyCodeResponse(BaseModel):
     message: str
     user: UserResponse
 
 class GoogleAuthUrlResponse(BaseModel):
     auth_url: str
+

@@ -12,8 +12,16 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+import re
+import uuid
+import json
+from sqlalchemy.orm import Session
+
 from app.api.auth import get_current_user
+from app.db.session import get_db
 from app.models.user import User
+from app.models.analysis_record import AnalysisRecord
+from app.services.entity_resolver import resolve_entity
 
 from finos.core.graph.engine import FinosGraphEngine
 from tradingagents.default_config import DEFAULT_CONFIG
@@ -25,7 +33,7 @@ router = APIRouter(prefix="/analysis", tags=["Analysis Engine"])
 class AnalysisRequest(BaseModel):
     entity_id: Optional[str] = Field(
         None,
-        description="Target security ticker symbol (e.g., RELIANCE.NS, TCS.NS, AAPL). Defaults to auto-extracted or RELIANCE.NS.",
+        description="Target security ticker symbol (e.g., VEDL.NS, RELIANCE.NS, TCS.NS, AAPL). Auto-extracted from query if omitted.",
     )
     request: str = Field(
         ...,
@@ -45,31 +53,7 @@ class AnalysisRequest(BaseModel):
     )
 
 
-def _extract_ticker_fallback(prompt: str) -> str:
-    """Safely extracts known ticker symbols from user query prompt or defaults to RELIANCE.NS."""
-    upper = prompt.upper()
-    known_tickers = [
-        "RELIANCE.NS",
-        "TCS.NS",
-        "INFY.NS",
-        "HDFCBANK.NS",
-        "ICICIBANK.NS",
-        "AAPL",
-        "MSFT",
-        "TSLA",
-        "NVDA",
-        "AMZN",
-        "GOOGL",
-        "RELIANCE",
-        "TCS",
-        "INFY",
-    ]
-    for ticker in known_tickers:
-        if ticker in upper:
-            if ticker in ["RELIANCE", "TCS", "INFY"]:
-                return f"{ticker}.NS"
-            return ticker
-    return "RELIANCE.NS"
+from app.services.entity_resolver import resolve_entity
 
 
 def _get_engine() -> FinosGraphEngine:
@@ -105,6 +89,7 @@ def _get_engine() -> FinosGraphEngine:
 def run_financial_analysis(
     payload: AnalysisRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Authenticated endpoint executing the real FinOS 10-agent DAG workflow."""
     if not payload.request or not payload.request.strip():
@@ -112,8 +97,17 @@ def run_financial_analysis(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Analysis request prompt cannot be empty.",
         )
-
-    target_symbol = payload.entity_id.strip() if payload.entity_id and payload.entity_id.strip() else _extract_ticker_fallback(payload.request)
+    target_market = payload.market if payload.market else "NSE India"
+    if payload.entity_id and payload.entity_id.strip():
+        target_symbol = payload.entity_id.strip().upper()
+    else:
+        resolved = resolve_entity(payload.request, market=target_market)
+        if not resolved:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not uniquely identify the requested company. Please provide the ticker or exchange symbol.",
+            )
+        target_symbol = resolved
     target_as_of = payload.as_of_date.strip() if payload.as_of_date and payload.as_of_date.strip() else datetime.now().strftime("%Y-%m-%d")
     target_market = payload.market if payload.market else "NSE India"
 
@@ -128,9 +122,38 @@ def run_financial_analysis(
         )
         # Ensure user info is recorded in metadata
         state["metadata"]["requested_by_user_email"] = current_user.email
-        return jsonable_encoder(state)
+        encoded_state = jsonable_encoder(state)
+
+        # Save persistent AnalysisRecord for authenticated user
+        record_id = f"an_{uuid.uuid4().hex[:12]}"
+        state_json_str = json.dumps(encoded_state)
+
+        report_data = encoded_state.get("report") or {}
+        if isinstance(report_data, dict):
+            final_report_md = report_data.get("metadata", {}).get("full_report_markdown") or report_data.get("findings", {}).get("summary") or report_data.get("summary", "")
+        else:
+            final_report_md = str(report_data)
+
+        record = AnalysisRecord(
+            id=record_id,
+            user_id=current_user.id,
+            request=payload.request,
+            entity_id=target_symbol,
+            market=target_market,
+            as_of_date=target_as_of,
+            state_json=state_json_str,
+            final_report=final_report_md,
+            status="completed",
+        )
+        db.add(record)
+        db.commit()
+
+        encoded_state["id"] = record_id
+        encoded_state["analysis_id"] = record_id
+        return encoded_state
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"FinOS multi-agent execution failure: {str(exc)}",
         )
+

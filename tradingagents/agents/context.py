@@ -208,6 +208,19 @@ def get_portfolio_context_from_state(state: Mapping[str, Any]) -> str:
     )
 
 
+def get_user_query_from_state(state: Mapping[str, Any]) -> str:
+    """Return formatted prompt instruction if a natural-language user query is present on state."""
+    query = state.get("user_query") or state.get("request") or state.get("user_request")
+    if isinstance(query, str) and query.strip():
+        clean_q = query.strip()
+        return (
+            f"User Inquiry / Request: \"{clean_q}\"\n"
+            f"Focus your reasoning, analysis, and recommendations specifically on addressing this user inquiry using the available market evidence.\n"
+        )
+    return ""
+
+
+
 def create_msg_delete():
     def delete_messages(state):
         """Clear messages and add a context-anchored placeholder.

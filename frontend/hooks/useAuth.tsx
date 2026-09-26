@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Logout error", e);
     } finally {
       setUser(null);
-      window.location.href = "/";
+      window.location.href = "/login";
     }
   }, []);
 

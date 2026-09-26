@@ -10,6 +10,7 @@ from tradingagents.agents.context import (
     get_instrument_context_from_state,
     get_language_instruction,
     get_portfolio_context_from_state,
+    get_user_query_from_state,
 )
 from tradingagents.agents.schemas import TraderProposal, render_trader_proposal
 from tradingagents.agents.structured import (
@@ -25,6 +26,7 @@ def create_trader(llm):
     def trader_node(state, name):
         company_name = state["company_of_interest"]
         instrument_context = get_instrument_context_from_state(state)
+        user_query_context = get_user_query_from_state(state)
         investment_plan = state["investment_plan"]
         # The research plan digests the debate but loses exact price structure;
         # give the Trader the technical market report so entry/stop levels are
@@ -67,7 +69,7 @@ def create_trader(llm):
                 "role": "user",
                 "content": (
                     f"Here is the research team's investment plan for {company_name}. "
-                    f"{instrument_context}\n\n"
+                    f"{user_query_context}{instrument_context}\n\n"
                     f"{report_section}"
                     f"{portfolio_context}\n\n"
                     f"Proposed Investment Plan:\n{investment_plan}\n\n"

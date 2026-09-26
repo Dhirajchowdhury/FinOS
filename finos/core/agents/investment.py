@@ -99,6 +99,7 @@ class InvestmentAgent(FinOSDomainAgent):
                 "company_of_interest": ticker,
                 "asset_type": agent_input.entity_type,
                 "trade_date": as_of_date,
+                "user_query": agent_input.request,
                 "market_report": context.get("market_report", ""),
                 "sentiment_report": context.get("sentiment_report", news_report),
                 "news_report": news_report,

@@ -5,6 +5,19 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import { MOCK_ALLOCATIONS } from "@/lib/mock/portfolio";
 
 export function AllocationDonut() {
+  if (!MOCK_ALLOCATIONS || MOCK_ALLOCATIONS.length === 0) {
+    return (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-xs text-center space-y-2 h-full flex flex-col justify-center">
+        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+          Asset Allocation
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Asset allocation data unavailable. No active portfolio holdings connected.
+        </p>
+      </div>
+    );
+  }
+
   const total = MOCK_ALLOCATIONS.reduce((sum, item) => sum + item.value, 0);
 
   const formatCurrency = (val: number) => {

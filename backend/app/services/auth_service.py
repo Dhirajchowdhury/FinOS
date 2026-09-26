@@ -11,6 +11,8 @@ from app.core.security import (
     generate_salt,
     hash_otp,
     verify_otp_hash,
+    hash_password,
+    verify_password,
 )
 from app.models.user import User
 from app.models.otp import OTPRequest
@@ -203,6 +205,7 @@ class AuthService:
         from app.core.config import Settings
         cfg = Settings()
         if not cfg.GOOGLE_CLIENT_ID or not cfg.GOOGLE_CLIENT_SECRET:
+            print("[OAUTH STEP 2 FAIL] Google credentials missing in config")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Google OAuth is not configured on the backend.",
@@ -219,10 +222,17 @@ class AuthService:
 
         async with httpx.AsyncClient() as client:
             token_resp = await client.post(token_url, data=data, timeout=10)
+            print(f"[OAUTH STEP 2] Token exchange HTTP status={token_resp.status_code}")
             if token_resp.status_code != 200:
+                try:
+                    err_json = token_resp.json()
+                    err_desc = err_json.get("error_description") or err_json.get("error") or "Token exchange failed"
+                except Exception:
+                    err_desc = "Token exchange failed"
+                print(f"[OAUTH STEP 2 FAIL] Google error message={err_desc}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to authenticate with Google. Invalid authorization code.",
+                    detail=f"Google OAuth failed: {err_desc}",
                 )
             
             token_data = token_resp.json()
@@ -232,7 +242,9 @@ class AuthService:
             userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
             headers = {"Authorization": f"Bearer {access_token}"}
             userinfo_resp = await client.get(userinfo_url, headers=headers, timeout=10)
+            print(f"[OAUTH STEP 3] Userinfo HTTP status={userinfo_resp.status_code}")
             if userinfo_resp.status_code != 200:
+                print(f"[OAUTH STEP 3 FAIL] Userinfo HTTP status={userinfo_resp.status_code}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Failed to retrieve user profile from Google.",
@@ -245,6 +257,7 @@ class AuthService:
         name = profile.get("name")
 
         if not email:
+            print("[OAUTH STEP 3 FAIL] No verified email in profile")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Google account does not have a verified email address.",
@@ -253,32 +266,99 @@ class AuthService:
         now = datetime.now(timezone.utc)
         normalized_email = email.strip().lower()
 
-        # Find by google_id or email
-        user = (
-            db.query(User)
-            .filter((User.google_id == google_id) | (User.email == normalized_email))
-            .first()
-        )
-
-        if not user:
-            user = User(
-                email=normalized_email,
-                name=name,
-                google_id=google_id,
-                is_verified=True,
-                created_at=now,
-                last_login=now,
+        try:
+            user = (
+                db.query(User)
+                .filter((User.google_id == google_id) | (User.email == normalized_email))
+                .first()
             )
-            db.add(user)
-        else:
-            user.google_id = google_id
-            if name and not user.name:
-                user.name = name
-            user.is_verified = True
-            user.last_login = now
 
+            if not user:
+                user = User(
+                    email=normalized_email,
+                    name=name,
+                    google_id=google_id,
+                    is_verified=True,
+                    created_at=now,
+                    last_login=now,
+                )
+                db.add(user)
+            else:
+                user.google_id = google_id
+                if name and not user.name:
+                    user.name = name
+                user.is_verified = True
+                user.last_login = now
+
+            db.commit()
+            db.refresh(user)
+            return user
+        except Exception as db_err:
+            print(f"[OAUTH STEP 4 FAIL] Database error: type={type(db_err).__name__}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database error during user account creation.",
+            )
+
+    def register_user(self, db: Session, email: str, password: str, name: Optional[str] = None) -> User:
+        """
+        Registers a new user with email/password authentication.
+        """
+        normalized_email = email.strip().lower()
+
+        existing_user = db.query(User).filter(User.email == normalized_email).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="An account with this email address already exists.",
+            )
+
+        now = datetime.now(timezone.utc)
+        pwd_hash = hash_password(password)
+
+        user = User(
+            email=normalized_email,
+            name=name.strip() if name else None,
+            password_hash=pwd_hash,
+            is_verified=True,
+            created_at=now,
+            last_login=now,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    def authenticate_user(self, db: Session, email: str, password: str) -> User:
+        """
+        Authenticates a user with email/password credentials.
+        """
+        normalized_email = email.strip().lower()
+
+        user = db.query(User).filter(User.email == normalized_email).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password.",
+            )
+
+        if not user.password_hash:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This account uses Google Sign-In. Please sign in with Google.",
+            )
+
+        if not verify_password(password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password.",
+            )
+
+        user.last_login = datetime.now(timezone.utc)
         db.commit()
         db.refresh(user)
         return user
 
 auth_service = AuthService()
+

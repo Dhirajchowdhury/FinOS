@@ -1,6 +1,7 @@
 from tradingagents.agents.context import (
     get_instrument_context_from_state,
     get_language_instruction,
+    get_user_query_from_state,
     opponent_argument_or_opening,
     report_or_absent,
 )
@@ -20,6 +21,7 @@ def create_bull_researcher(llm):
         news_report = report_or_absent(state["news_report"], "news")
         fundamentals_report = report_or_absent(state["fundamentals_report"], "fundamentals")
         instrument_context = get_instrument_context_from_state(state)
+        user_query_context = get_user_query_from_state(state)
         asset_type = state.get("asset_type", "stock")
         target_label = "stock" if asset_type == "stock" else "asset"
         fundamentals_label = (
@@ -30,7 +32,7 @@ def create_bull_researcher(llm):
 
         prompt = f"""You are a Bull Analyst advocating for investing in the {target_label}. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
 
-Key points to focus on:
+{user_query_context}Key points to focus on:
 - Growth Potential: Highlight the company's market opportunities, revenue projections, and scalability.
 - Competitive Advantages: Emphasize factors like unique products, strong branding, or dominant market positioning.
 - Positive Indicators: Use financial health, industry trends, and recent positive news as evidence.

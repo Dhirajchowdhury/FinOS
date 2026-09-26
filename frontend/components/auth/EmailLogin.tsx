@@ -87,7 +87,6 @@ export function EmailLogin({ onCodeSent, disabled }: EmailLoginProps) {
 
       <button
         type="submit"
-        onClick={handleSubmit}
         disabled={disabled || isLoading || !email.trim()}
         className="w-full bg-[#047857] hover:bg-[#065f46] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white py-3 px-5 rounded-xl font-bold text-base flex items-center justify-center gap-2.5 shadow-md shadow-emerald-900/10 hover:shadow-lg transition duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-emerald-600/20"
       >

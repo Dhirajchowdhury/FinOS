@@ -1,6 +1,7 @@
 from tradingagents.agents.context import (
     get_instrument_context_from_state,
     get_language_instruction,
+    get_user_query_from_state,
     opponent_argument_or_opening,
     report_or_absent,
 )
@@ -20,6 +21,7 @@ def create_bear_researcher(llm):
         news_report = report_or_absent(state["news_report"], "news")
         fundamentals_report = report_or_absent(state["fundamentals_report"], "fundamentals")
         instrument_context = get_instrument_context_from_state(state)
+        user_query_context = get_user_query_from_state(state)
         asset_type = state.get("asset_type", "stock")
         target_label = "stock" if asset_type == "stock" else "asset"
         fundamentals_label = (
@@ -30,7 +32,7 @@ def create_bear_researcher(llm):
 
         prompt = f"""You are a Bear Analyst making the case against investing in the {target_label}. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
 
-Key points to focus on:
+{user_query_context}Key points to focus on:
 
 - Risks and Challenges: Highlight factors like market saturation, financial instability, or macroeconomic threats that could hinder the stock's performance.
 - Competitive Weaknesses: Emphasize vulnerabilities such as weaker market positioning, declining innovation, or threats from competitors.

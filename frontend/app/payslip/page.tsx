@@ -94,17 +94,11 @@ export default function PayslipPage() {
           setStep(3);
           setTimeout(() => {
             // Step 4: Analysis
-            setStep(4);
             setTimeout(() => {
-              // Step 5: Results Ready
-              setAnalysisResult({
-                ...MOCK_PAYSLIP_RESULT,
-                fileName: file.name,
-                fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-              });
-              setStep(5);
-              success("Analysis Complete", "Payslip intelligence dossier generated successfully.");
-            }, 1200);
+              setStep(1);
+              error("Service Unavailable", "Payslip OCR extraction service is unavailable. Live document extraction will be connected in an upcoming release.");
+            }, 800);
+
           }, 1400);
           return 100;
         }

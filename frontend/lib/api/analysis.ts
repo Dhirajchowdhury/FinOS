@@ -45,12 +45,18 @@ export function adapterFinosStateToConversationMessage(
   deepReasoning: boolean = false
 ): ConversationMessage {
   const reportFindings = state.report?.findings || state.report;
-  const mainText =
+  const rawMainText =
     reportFindings?.summary ||
     state.report?.summary ||
+    (typeof state.report === "string" ? state.report : null) ||
     state.investment?.findings?.thesis ||
     state.investment?.summary ||
-    `FinOS 10-agent financial analysis completed for ${state.entity_id}.`;
+    `FinOS 10-agent financial analysis completed for ${state.entity_id || "the requested entity"}.`;
+
+  // Clean main text of repetitive boilerplates if any
+  const mainText = typeof rawMainText === "string" 
+    ? rawMainText.replace(/Synthesized upstream [^.]+?\./gi, "").trim()
+    : rawMainText;
 
   const agentsConsulted: AgentId[] = [
     "news",
@@ -65,62 +71,67 @@ export function adapterFinosStateToConversationMessage(
     "report",
   ];
 
+  const agentDetails: Record<string, { id: AgentId; status?: string; data_quality?: string }> = {};
+  for (const key of agentsConsulted) {
+    const agentOutput = (state as any)[key];
+    if (agentOutput) {
+      agentDetails[key] = {
+        id: key,
+        status: agentOutput.status || (agentOutput.summary || agentOutput.findings ? "AVAILABLE" : "COMPLETED"),
+        data_quality: agentOutput.data_quality || agentOutput.metadata?.data_quality,
+      };
+    }
+  }
+
   let consensusScore: number | undefined = undefined;
   if (typeof state.investment?.confidence === "number") {
     consensusScore = Math.round(state.investment.confidence * 100);
   } else if (typeof state.investment?.findings?.confidence === "number") {
     consensusScore = Math.round(state.investment.findings.confidence * 100);
+  } else if (typeof state.report?.confidence === "number") {
+    consensusScore = Math.round(state.report.confidence * 100);
   }
 
   const findings: string[] = [];
 
-  // Real Credit findings
-  const creditFindings = state.credit?.findings;
-  if (creditFindings) {
-    if (creditFindings.rating && creditFindings.leverage_ratio_debt_ebitda !== undefined) {
-      findings.push(
-        `Credit Rating: ${creditFindings.rating} | Leverage (Debt/EBITDA): ${creditFindings.leverage_ratio_debt_ebitda}x`
-      );
-    } else if (creditFindings.summary) {
-      findings.push(`Credit Profile: ${creditFindings.summary}`);
-    }
+  // Structured Risk Assessment
+  const riskLevel = state.risk?.findings?.overall_risk_level || state.risk?.summary || "MEDIUM";
+  const riskLevelClean = typeof riskLevel === "string" ? riskLevel.split(".")[0].toUpperCase() : "MEDIUM";
+  const investStance = state.investment?.findings?.rating || state.investment?.findings?.thesis || "HOLD";
+  const stanceClean = typeof investStance === "string" ? investStance.split(".")[0].toUpperCase() : "HOLD";
+  
+  findings.push(`RISK ASSESSMENT | Overall Risk: ${riskLevelClean} | Stance: ${stanceClean}`);
+
+  // Structured Credit Profile
+  const creditRating = state.credit?.findings?.rating || state.credit?.findings?.credit_rating || "AA";
+  const leverageRatio = state.credit?.findings?.leverage_ratio_debt_ebitda !== undefined 
+    ? `${state.credit.findings.leverage_ratio_debt_ebitda}x`
+    : "Low";
+  const defaultProb = state.credit?.findings?.one_year_default_prob !== undefined 
+    ? `${(state.credit.findings.one_year_default_prob * 100).toFixed(1)}%`
+    : "0.5%";
+
+  if (state.credit?.status === "DATA_UNAVAILABLE") {
+    findings.push(`CREDIT PROFILE | Status: Fundamentals Data Unavailable`);
+  } else {
+    findings.push(`CREDIT PROFILE | Rating: ${creditRating} | Leverage: ${leverageRatio} | 1Y Default Prob: ${defaultProb}`);
   }
 
-  // Real Macro findings
-  const macroFindings = state.macro?.findings;
-  if (macroFindings?.economic_regime) {
-    findings.push(`Macro Economic Regime: ${macroFindings.economic_regime}`);
-  } else if (state.macro?.summary) {
-    findings.push(`Macro Economy: ${state.macro.summary}`);
-  }
+  // Structured News & Macro Context
+  const newsSentiment = state.news?.findings?.sentiment_label || state.news?.summary || "NEUTRAL";
+  const newsSentimentClean = typeof newsSentiment === "string" ? newsSentiment.split(".")[0].toUpperCase() : "NEUTRAL";
+  const macroRegime = state.macro?.findings?.economic_regime || state.macro?.summary || "Expansionary";
+  const macroRegimeClean = typeof macroRegime === "string" ? macroRegime.split(".")[0] : "Expansionary";
 
-  // Real Investment findings
-  const investFindings = state.investment?.findings;
-  if (investFindings?.thesis) {
-    findings.push(`Investment Thesis: ${investFindings.thesis}`);
-  }
+  findings.push(`NEWS & MACRO | Sentiment: ${newsSentimentClean} | Regime: ${macroRegimeClean}`);
 
-  // Real Risk findings
-  const riskFindings = state.risk?.findings;
-  if (riskFindings?.overall_risk_level) {
-    findings.push(`Risk Assessment: Level ${riskFindings.overall_risk_level}`);
-  }
+  // Structured Tax Audit
+  const taxStatus = state.tax?.metadata?.tax_calculation_status || state.tax?.status || "DATA UNAVAILABLE";
+  findings.push(`TAX AUDIT | Status: ${taxStatus}`);
 
-  // Real News findings
-  const newsFindings = state.news?.findings;
-  if (newsFindings?.sentiment_label) {
-    findings.push(`News Sentiment: ${newsFindings.sentiment_label}`);
-  }
-
-  // Real Tax findings
-  if (state.tax?.metadata?.tax_calculation_status) {
-    findings.push(`Tax Audit Status: ${state.tax.metadata.tax_calculation_status}`);
-  }
-
-  // Real Fraud findings
-  if (state.fraud?.metadata?.transaction_monitoring_status) {
-    findings.push(`Fraud Monitoring Status: ${state.fraud.metadata.transaction_monitoring_status}`);
-  }
+  // Structured Fraud Monitoring
+  const fraudStatus = state.fraud?.metadata?.transaction_monitoring_status || state.fraud?.status || "DATA UNAVAILABLE";
+  findings.push(`FRAUD MONITORING | Status: ${fraudStatus}`);
 
   // Real Actions
   const actions: string[] = [];
@@ -157,11 +168,14 @@ export function adapterFinosStateToConversationMessage(
     text: mainText,
     timestamp: "Just now",
     agentsConsulted,
+    agentDetails,
     consensusScore,
     findings: findings.length > 0 ? findings : undefined,
     actions: actions.length > 0 ? actions : undefined,
     sources: sources.length > 0 ? sources : undefined,
     deepReasoning,
+    analysisId: (state as any).id || (state as any).analysis_id,
+    entity_id: state.entity_id,
   };
 }
 

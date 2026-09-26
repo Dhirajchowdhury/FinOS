@@ -12,6 +12,17 @@ interface NewsFeedProps {
 export function NewsFeed({ news }: NewsFeedProps) {
   const [filterSentiment, setFilterSentiment] = useState<string>("All");
 
+  if (!news || news.length === 0) {
+    return (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs text-center space-y-1">
+        <h3 className="text-base font-bold text-slate-900 dark:text-white">AI-Curated Intelligence Stream</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+          Market news feed unavailable. Live news stream is offline.
+        </p>
+      </div>
+    );
+  }
+
   const filteredNews = news.filter((item) => {
     if (filterSentiment === "All") return true;
     return item.sentiment === filterSentiment;

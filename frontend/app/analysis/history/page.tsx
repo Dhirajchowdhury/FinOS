@@ -125,20 +125,18 @@ export default function AnalysisHistoryPage() {
                 <Search className="w-6 h-6" />
               </div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                No matching analyses found
+                No analysis history yet
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Try searching for a different keyword like &quot;Reliance&quot;, &quot;Risk&quot;, &quot;RBI&quot;, or reset your filter.
+                No historical financial analyses recorded. Execute your first query in the Ask FinOS workspace to populate your multi-agent history.
               </p>
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setActiveFilter("All");
-                }}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
+              <Link
+                href="/ask"
+                className="inline-block px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition"
               >
-                Reset Filters
-              </button>
+                Go to Ask FinOS
+              </Link>
+
             </motion.div>
           ) : (
             <div className="overflow-x-auto">

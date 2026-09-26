@@ -72,3 +72,39 @@ def decode_access_token(token: str) -> Dict[str, Any]:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token.",
         )
+def hash_password(password: str) -> str:
+    """
+    Hashes a password using PBKDF2-HMAC-SHA256 with 100,000 iterations and a secure random salt.
+    """
+    salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        100000,
+    )
+    return f"pbkdf2_sha256$100000${salt}${key.hex()}"
+
+def verify_password(plain_password: str, password_hash: str) -> bool:
+    """
+    Verifies a plain password against a stored PBKDF2-HMAC-SHA256 hash in constant time.
+    """
+    if not password_hash or not password_hash.startswith("pbkdf2_sha256$"):
+        return False
+    try:
+        parts = password_hash.split("$")
+        if len(parts) != 4:
+            return False
+        iterations = int(parts[1])
+        salt = parts[2]
+        expected_hash = parts[3]
+        
+        computed_key = hashlib.pbkdf2_hmac(
+            "sha256",
+            plain_password.encode("utf-8"),
+            salt.encode("utf-8"),
+            iterations,
+        ).hex()
+        return hmac.compare_digest(computed_key, expected_hash)
+    except Exception:
+        return False

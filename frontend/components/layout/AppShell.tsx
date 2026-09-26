@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AppSidebar } from "./AppSidebar";
 import { GlobalSearch } from "./GlobalSearch";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { getUserDisplayName, getUserInitials } from "@/lib/utils";
 import {
   Menu,
   Bell,
@@ -20,6 +22,7 @@ import {
   LogOut,
   ChevronDown,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import { PageTransition } from "@/components/motion/PageTransition";
 
@@ -30,14 +33,22 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, headerTitle, headerSubtitle }: AppShellProps) {
-  const { user, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const router = useRouter();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Protected Route Guard: Redirect unauthenticated users to /login
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   // Load persisted sidebar state
   useEffect(() => {
@@ -75,6 +86,25 @@ export function AppShell({ children, headerTitle, headerSubtitle }: AppShellProp
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] dark:bg-[#080c14]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+          <span className="text-xs font-mono text-slate-400">Verifying FinOS Institutional Session...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  const displayName = getUserDisplayName(user);
+  const initials = getUserInitials(user);
+  const userEmail = user?.email || "";
 
   const notifications = [
     {
@@ -274,7 +304,7 @@ export function AppShell({ children, headerTitle, headerSubtitle }: AppShellProp
                 className="flex items-center gap-2 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 <div className="h-7 w-7 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center justify-center">
-                  {(user?.name || "Anuj")[0].toUpperCase()}
+                  {initials}
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
               </button>
@@ -283,10 +313,10 @@ export function AppShell({ children, headerTitle, headerSubtitle }: AppShellProp
                 <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
                   <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                     <div className="font-bold text-xs text-slate-900 dark:text-white">
-                      {user?.name || "Anuj Kumar Singh"}
+                      {displayName}
                     </div>
                     <div className="text-[10px] text-slate-400 truncate">
-                      {user?.email || "anuj.singh@finos.ai"}
+                      {userEmail}
                     </div>
                   </div>
 

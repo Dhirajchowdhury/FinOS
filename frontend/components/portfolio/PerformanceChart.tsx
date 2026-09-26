@@ -15,7 +15,21 @@ import { MOCK_PERFORMANCE_HISTORY } from "@/lib/mock/portfolio";
 
 export function PerformanceChart() {
   const [timeframe, setTimeframe] = useState<"1M" | "3M" | "1Y" | "ALL">("1M");
-  const data = MOCK_PERFORMANCE_HISTORY[timeframe] || MOCK_PERFORMANCE_HISTORY["1M"];
+  const data = MOCK_PERFORMANCE_HISTORY[timeframe] || [];
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-xs text-center space-y-2">
+        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+          Performance Attribution &amp; NAV History
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Portfolio performance data unavailable. Real-time NAV history is not connected to an active brokerage or treasury feed.
+        </p>
+      </div>
+    );
+  }
+
 
   const formatCurrency = (val: number) => {
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;

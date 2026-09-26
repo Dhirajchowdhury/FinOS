@@ -123,11 +123,13 @@ class ReportAgent(FinOSDomainAgent):
             "12. Final Synthesis & Contradiction Resolution",
         ]
 
+        user_query = (agent_input.request or "").strip()
+        query_block = f"> **Target Inquiry:** *\"{user_query}\"*\n\n" if user_query else ""
+
         full_report_md = f"""# FinOS Comprehensive Financial Analysis — {ticker}
 
 > **Observation Date:** `{as_of_date}` | **Market:** `{context.get('market', 'NSE India')}` | **Orchestrator:** `FinOS Multi-Agent Engine`
-
----
+{query_block}---
 
 ## 1. Executive Summary
 {invest_str}
@@ -192,8 +194,14 @@ class ReportAgent(FinOSDomainAgent):
             except Exception:
                 pass
 
+        summary_msg = (
+            f"Financial analysis report for {ticker} as of {as_of_date} responding to: '{user_query}'."
+            if user_query
+            else f"Comprehensive 12-Section Financial Report compiled for {ticker} as of {as_of_date}."
+        )
+
         assessment = ReportAssessment(
-            summary=f"Financial analysis report compiled for {ticker} on {as_of_date}.",
+            summary=summary_msg,
             executive_summary=invest_str[:300],
             key_findings=[invest_str[:120], credit_str[:120], macro_str[:120]],
             investment_context=invest_str,
@@ -212,7 +220,7 @@ class ReportAgent(FinOSDomainAgent):
             agent_name=self.name,
             entity_id=ticker,
             as_of_date=as_of_date,
-            summary=f"Comprehensive 12-Section Financial Report compiled for {ticker} as of {as_of_date}.",
+            summary=summary_msg,
             findings=assessment,
             confidence=assessment.confidence,
             evidence=[full_report_md],

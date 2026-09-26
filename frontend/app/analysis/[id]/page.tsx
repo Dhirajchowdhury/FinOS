@@ -33,10 +33,36 @@ export default function AnalysisDetailPage() {
   const router = useRouter();
   const id = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : "";
 
-  // Retrieve matching record or fallback to first record
-  const record = getAnalysisRecordById(id) || MOCK_ANALYSIS_RECORDS[0];
+  // Retrieve matching record
+  const record = getAnalysisRecordById(id);
+
+  if (!record) {
+    return (
+      <AppShell headerTitle="Analysis Dossier" headerSubtitle="Historical analysis query">
+        <div className="max-w-xl mx-auto py-16 text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-6 h-6 text-amber-500" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+            Analysis Dossier Unavailable
+          </h2>
+          <p className="text-xs text-slate-500">
+            The requested analysis record was not found or has expired. Please execute a new inquiry in the Ask FinOS workspace.
+          </p>
+          <Link
+            href="/ask"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-xs hover:bg-emerald-700 transition"
+          >
+            <span>Go to Ask FinOS</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </AppShell>
+    );
+  }
 
   const [isRerunning, setIsRerunning] = useState(false);
+
   const [rerunStage, setRerunStage] = useState<string>("");
   const [reportState, setReportState] = useState<"idle" | "generating" | "ready">("idle");
   const [generatedReportText, setGeneratedReportText] = useState("");

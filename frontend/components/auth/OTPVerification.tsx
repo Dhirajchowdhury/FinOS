@@ -56,6 +56,7 @@ export function OTPVerification({
   };
 
   const handleVerify = async (otpToVerify?: string) => {
+    if (isVerifying || isSuccess) return;
     const targetCode = otpToVerify || code;
     if (targetCode.length !== 6) return;
 

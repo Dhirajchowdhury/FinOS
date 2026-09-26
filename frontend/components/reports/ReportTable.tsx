@@ -74,8 +74,19 @@ export function ReportTable({ reports, onViewReport }: ReportTableProps) {
 
       {/* Reports List */}
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
-        <AnimatePresence mode="popLayout">
-          {filteredReports.map((report) => (
+        {filteredReports.length === 0 ? (
+          <div className="py-12 p-6 text-center space-y-2">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              No financial dossiers archived
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+              Click &quot;Generate New Dossier&quot; or execute an analysis on the Ask FinOS page to generate an audit report.
+            </p>
+          </div>
+        ) : (
+          <AnimatePresence mode="popLayout">
+            {filteredReports.map((report) => (
+
             <motion.div
               key={report.id}
               initial={{ opacity: 0, y: 6 }}
@@ -154,7 +165,9 @@ export function ReportTable({ reports, onViewReport }: ReportTableProps) {
             </motion.div>
           ))}
         </AnimatePresence>
+        )}
       </div>
     </div>
   );
 }
+
