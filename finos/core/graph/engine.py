@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 from typing import Any
 
 from finos.core.agents.base import FinOSAgentInput
@@ -16,6 +17,7 @@ from finos.core.agents.tax import TaxAgent
 from finos.core.agents.trading import TradingAgent
 from finos.core.config import FINOS_CONFIG
 from finos.core.graph.propagation import StatePropagator
+from finos.core.messaging.publisher import EventPublisher
 from finos.core.state.base import FinosState
 
 
@@ -26,6 +28,7 @@ class FinosGraphEngine:
         self.config = config or FINOS_CONFIG
         self.llm = llm
         self.propagator = StatePropagator()
+        self.publisher = EventPublisher(config=self.config)
 
         # Instantiate 10 FinOS domain agents
         self.news_agent = NewsAgent(llm=llm)
@@ -66,6 +69,26 @@ class FinosGraphEngine:
         if context:
             state["metadata"].update(context)
 
+        # Ensure consistent correlation_id spanning the entire workflow execution
+        correlation_id = (
+            state["metadata"].get("correlation_id")
+            or state["metadata"].get("run_id")
+            or state["metadata"].get("execution_id")
+            or str(uuid.uuid4())
+        )
+        state["metadata"]["correlation_id"] = correlation_id
+
+        # Publish optional workflow started events
+        self.publisher.publish_graph_state_updated(state, stage_name="started", correlation_id=correlation_id)
+        self.publisher.publish_analysis_requested(
+            entity_id=entity_id,
+            as_of_date=as_of_date,
+            request=request,
+            correlation_id=correlation_id,
+            market=market,
+            context=context,
+        )
+
         # Helper to convert output to dict
         def to_dict(out):
             if hasattr(out, "model_dump"):
@@ -73,6 +96,34 @@ class FinosGraphEngine:
             if hasattr(out, "dict"):
                 return out.dict()
             return out
+
+        # Helper to wrap agent analysis with optional Kafka event publishing
+        def run_agent(agent, agent_input):
+            self.publisher.publish_agent_started(
+                agent_name=agent.name,
+                entity_id=agent_input.entity_id,
+                entity_type=agent_input.entity_type,
+                as_of_date=agent_input.as_of_date,
+                correlation_id=correlation_id,
+                context=agent_input.context,
+            )
+            try:
+                out = agent.analyze(agent_input)
+                self.publisher.publish_agent_completed(
+                    agent_output=out,
+                    correlation_id=correlation_id,
+                )
+                return out
+            except Exception as exc:
+                self.publisher.publish_agent_failed(
+                    agent_name=agent.name,
+                    entity_id=agent_input.entity_id,
+                    entity_type=agent_input.entity_type,
+                    as_of_date=agent_input.as_of_date,
+                    correlation_id=correlation_id,
+                    error_message=str(exc),
+                )
+                raise
 
         # ---------------------------------------------------------
         # STAGE 1: Parallel Primary Intelligence (News, Macro, Credit)
@@ -84,7 +135,7 @@ class FinosGraphEngine:
             context={"market": market, **state["metadata"]},
         )
 
-        news_out = self.news_agent.analyze(base_input)
+        news_out = run_agent(self.news_agent, base_input)
         state["news"] = to_dict(news_out)
 
         macro_input = FinOSAgentInput(
@@ -93,10 +144,10 @@ class FinosGraphEngine:
             request=request,
             context={"market": market, **state["metadata"]},
         )
-        macro_out = self.macro_agent.analyze(macro_input)
+        macro_out = run_agent(self.macro_agent, macro_input)
         state["macro"] = to_dict(macro_out)
 
-        credit_out = self.credit_agent.analyze(base_input)
+        credit_out = run_agent(self.credit_agent, base_input)
         state["credit"] = to_dict(credit_out)
 
         # ---------------------------------------------------------
@@ -113,7 +164,7 @@ class FinosGraphEngine:
                 "credit": credit_out,
             },
         )
-        invest_out = self.investment_agent.analyze(invest_input)
+        invest_out = run_agent(self.investment_agent, invest_input)
         state["investment"] = to_dict(invest_out)
 
         # ---------------------------------------------------------
@@ -130,7 +181,7 @@ class FinosGraphEngine:
                 "macro": macro_out,
             },
         )
-        risk_out = self.risk_agent.analyze(risk_input)
+        risk_out = run_agent(self.risk_agent, risk_input)
         state["risk"] = to_dict(risk_out)
 
         port_input = FinOSAgentInput(
@@ -143,7 +194,7 @@ class FinosGraphEngine:
                 "risk": risk_out,
             },
         )
-        port_out = self.portfolio_agent.analyze(port_input)
+        port_out = run_agent(self.portfolio_agent, port_input)
         state["portfolio"] = to_dict(port_out)
 
         # ---------------------------------------------------------
@@ -160,7 +211,7 @@ class FinosGraphEngine:
                 "portfolio": port_out,
             },
         )
-        trading_out = self.trading_agent.analyze(trading_input)
+        trading_out = run_agent(self.trading_agent, trading_input)
         state["trading"] = to_dict(trading_out)
 
         # ---------------------------------------------------------
@@ -173,7 +224,7 @@ class FinosGraphEngine:
             context={"market": market, **state["metadata"]},
             relevant_previous_outputs={"trading": trading_out},
         )
-        tax_out = self.tax_agent.analyze(tax_input)
+        tax_out = run_agent(self.tax_agent, tax_input)
         state["tax"] = to_dict(tax_out)
 
         fraud_input = FinOSAgentInput(
@@ -183,7 +234,7 @@ class FinosGraphEngine:
             context={"market": market, **state["metadata"]},
             relevant_previous_outputs={"credit": credit_out, "trading": trading_out},
         )
-        fraud_out = self.fraud_agent.analyze(fraud_input)
+        fraud_out = run_agent(self.fraud_agent, fraud_input)
         state["fraud"] = to_dict(fraud_out)
 
         # ---------------------------------------------------------
@@ -206,7 +257,7 @@ class FinosGraphEngine:
                 "fraud": fraud_out,
             },
         )
-        report_out = self.report_agent.analyze(report_input)
+        report_out = run_agent(self.report_agent, report_input)
         state["report"] = to_dict(report_out)
 
         end_time = time.perf_counter()
@@ -222,5 +273,14 @@ class FinosGraphEngine:
         }
         state["sender"] = "Report Agent"
 
-        return state
+        # Publish optional workflow completed events
+        self.publisher.publish_graph_state_updated(state, stage_name="completed", correlation_id=correlation_id)
+        self.publisher.publish_analysis_completed(
+            entity_id=entity_id,
+            as_of_date=as_of_date,
+            correlation_id=correlation_id,
+            report_output=report_out,
+            data_quality=state.get("data_quality"),
+        )
 
+        return state

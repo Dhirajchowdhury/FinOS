@@ -6,12 +6,17 @@ and execution plans with strict risk limits and price structure grounding.
 
 from __future__ import annotations
 
+import logging
 import re
+import uuid
 from typing import Any
 from pydantic import BaseModel, Field
 
 from finos.core.agents.base import AgentStatus, FinOSAgentInput, FinOSAgentOutput, FinOSDomainAgent
+from finos.core.messaging.publisher import EventPublisher
 from tradingagents.agents.trader.trader import create_trader
+
+logger = logging.getLogger(__name__)
 
 
 class TradingProposal(BaseModel):
@@ -30,8 +35,9 @@ class TradingProposal(BaseModel):
 class TradingAgent(FinOSDomainAgent):
     """FinOS domain agent for trade proposal generation and execution planning."""
 
-    def __init__(self, llm: Any = None) -> None:
+    def __init__(self, llm: Any = None, publisher: EventPublisher | None = None) -> None:
         self.llm = llm
+        self.publisher = publisher or EventPublisher()
         if llm:
             self.trader_node = create_trader(llm)
         else:
@@ -63,6 +69,30 @@ class TradingAgent(FinOSDomainAgent):
             )
 
         context = agent_input.context or {}
+        correlation_id = (
+            context.get("correlation_id")
+            or context.get("run_id")
+            or context.get("execution_id")
+            or str(uuid.uuid4())
+        )
+
+        # Optional Kafka Event Emission: decision.requested
+        if self.publisher.enabled and ticker:
+            try:
+                self.publisher.publish_decision_requested(
+                    entity_id=ticker,
+                    as_of_date=as_of_date,
+                    correlation_id=correlation_id,
+                    source=self.name,
+                    context={
+                        "request": agent_input.request,
+                        "market": context.get("market", ""),
+                    },
+                    key=ticker,
+                )
+            except Exception as exc:
+                logger.warning("Failed to publish decision.requested event for %s: %s", ticker, exc)
+
         prev_outputs = agent_input.relevant_previous_outputs or {}
 
         invest_output = prev_outputs.get("investment") or context.get("investment_assessment")
@@ -151,7 +181,7 @@ class TradingAgent(FinOSDomainAgent):
             confidence=0.85 if invest_summary else 0.70,
         )
 
-        return FinOSAgentOutput(
+        output = FinOSAgentOutput(
             agent_name=self.name,
             entity_id=ticker,
             as_of_date=as_of_date,
@@ -168,6 +198,20 @@ class TradingAgent(FinOSDomainAgent):
                 "entry_conditions": entry_conditions,
                 "stop_loss_logic": stop_loss_logic,
                 "invalidation_conditions": invalidation_conditions,
+                "as_of_date": as_of_date,
             },
         )
+
+        # Optional Kafka Event Emission: decision.completed
+        if self.publisher.enabled and ticker:
+            try:
+                self.publisher.publish_decision_completed(
+                    agent_output=output,
+                    correlation_id=correlation_id,
+                    key=ticker,
+                )
+            except Exception as exc:
+                logger.warning("Failed to publish decision.completed event for %s: %s", ticker, exc)
+
+        return output
 

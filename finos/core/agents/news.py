@@ -6,10 +6,12 @@ producing a structured NewsAssessment in compliance with FinOS domain agent cont
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 from pydantic import BaseModel, Field
 
 from finos.core.agents.base import AgentStatus, FinOSAgentInput, FinOSAgentOutput, FinOSDomainAgent
+from finos.core.messaging.publisher import EventPublisher
 from tradingagents.dataflows.router import route_to_vendor
 
 
@@ -30,8 +32,9 @@ class NewsAssessment(BaseModel):
 class NewsAgent(FinOSDomainAgent):
     """FinOS domain agent for financial news intelligence."""
 
-    def __init__(self, llm: Any = None) -> None:
+    def __init__(self, llm: Any = None, publisher: EventPublisher | None = None) -> None:
         self.llm = llm
+        self.publisher = publisher or EventPublisher()
 
     @property
     def name(self) -> str:
@@ -59,6 +62,13 @@ class NewsAgent(FinOSDomainAgent):
             )
 
         context = agent_input.context or {}
+        correlation_id = (
+            context.get("correlation_id")
+            or context.get("run_id")
+            or context.get("execution_id")
+            or str(uuid.uuid4())
+        )
+
         news_report = context.get("news_report", "")
         raw_articles = list(context.get("raw_articles") or [])
 
@@ -140,6 +150,23 @@ class NewsAgent(FinOSDomainAgent):
                 neg_count += 1
                 risk_factors.append(f"Downside risk signal: {title[:100]}")
 
+        # Optional Kafka Event Emission: news.raw
+        if self.publisher.enabled and ticker:
+            raw_payload = {
+                "news_report": news_report,
+                "company_article_count": len(company_articles),
+                "global_article_count": len(global_articles),
+                "articles": normalized_articles[:5] if normalized_articles else company_articles[:5] or global_articles[:5],
+            }
+            self.publisher.publish_news_raw(
+                entity_id=ticker,
+                as_of_date=as_of_date,
+                raw_payload=raw_payload,
+                correlation_id=correlation_id,
+                source="yfinance_news_dataflows",
+                key=ticker,
+            )
+
         if news_report:
             nr_lower = news_report.lower()
             if "bullish" in nr_lower or "growth" in nr_lower or "outperform" in nr_lower:
@@ -185,7 +212,7 @@ class NewsAgent(FinOSDomainAgent):
             confidence=confidence,
         )
 
-        return FinOSAgentOutput(
+        output = FinOSAgentOutput(
             agent_name=self.name,
             entity_id=ticker,
             as_of_date=as_of_date,
@@ -204,3 +231,11 @@ class NewsAgent(FinOSDomainAgent):
             },
         )
 
+        # Optional Kafka Event Emission: news.processed
+        if self.publisher.enabled and ticker:
+            self.publisher.publish_news_processed(
+                agent_output=output,
+                correlation_id=correlation_id,
+            )
+
+        return output

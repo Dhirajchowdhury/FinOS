@@ -28,6 +28,7 @@ _ENV_KEY_MAP: dict[str, tuple[str, ...]] = {
     "temperature": ("FINOS_TEMPERATURE", "TRADINGAGENTS_TEMPERATURE"),
     "max_retries": ("FINOS_LLM_MAX_RETRIES", "TRADINGAGENTS_LLM_MAX_RETRIES"),
     "max_tokens": ("FINOS_MAX_TOKENS", "TRADINGAGENTS_MAX_TOKENS"),
+    "kafka_events_enabled": ("FINOS_KAFKA_EVENTS_ENABLED", "KAFKA_EVENTS_ENABLED"),
 }
 
 _BOOL_TRUE = frozenset({"true", "1", "yes", "on"})
@@ -78,6 +79,7 @@ FINOS_CONFIG: dict[str, Any] = {
     "max_tokens": _resolve_env("max_tokens", None),
     # Workflow Execution Settings
     "checkpoint_enabled": _resolve_env("checkpoint_enabled", False),
+    "kafka_events_enabled": _resolve_env("kafka_events_enabled", False),
     "output_language": _resolve_env("output_language", "English"),
     "max_recur_limit": 100,
     # Data Vendor Routing (Core data categories)

@@ -6,10 +6,12 @@ into a unified, domain-level Risk Assessment layer for FinOS.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 from pydantic import BaseModel, Field
 
 from finos.core.agents.base import AgentStatus, FinOSAgentInput, FinOSAgentOutput, FinOSDomainAgent
+from finos.core.messaging.publisher import EventPublisher
 from tradingagents.agents.risk_mgmt.aggressive_debator import create_aggressive_debator
 from tradingagents.agents.risk_mgmt.conservative_debator import create_conservative_debator
 from tradingagents.agents.risk_mgmt.neutral_debator import create_neutral_debator
@@ -35,8 +37,9 @@ class RiskAssessment(BaseModel):
 class RiskAgent(FinOSDomainAgent):
     """FinOS domain agent for financial risk assessment and debate synthesis."""
 
-    def __init__(self, llm: Any = None) -> None:
+    def __init__(self, llm: Any = None, publisher: EventPublisher | None = None) -> None:
         self.llm = llm
+        self.publisher = publisher or EventPublisher()
         if llm:
             self.aggressive_node = create_aggressive_debator(llm)
             self.conservative_node = create_conservative_debator(llm)
@@ -72,6 +75,12 @@ class RiskAgent(FinOSDomainAgent):
             )
 
         context = agent_input.context or {}
+        correlation_id = (
+            context.get("correlation_id")
+            or context.get("run_id")
+            or context.get("execution_id")
+            or str(uuid.uuid4())
+        )
         prev_outputs = agent_input.relevant_previous_outputs or {}
 
         invest_output = prev_outputs.get("investment") or context.get("investment_assessment")
@@ -181,7 +190,7 @@ class RiskAgent(FinOSDomainAgent):
             confidence=0.88 if (invest_thesis and credit_summary) else 0.72,
         )
 
-        return FinOSAgentOutput(
+        output = FinOSAgentOutput(
             agent_name=self.name,
             entity_id=ticker,
             as_of_date=as_of_date,
@@ -193,6 +202,17 @@ class RiskAgent(FinOSDomainAgent):
             metadata={
                 "specialists": ["aggressive_debator", "conservative_debator", "neutral_debator"],
                 "risk_level": risk_level,
+                "as_of_date": as_of_date,
             },
         )
+
+        # Optional Kafka Event Emission: risk.updated
+        if self.publisher.enabled and ticker:
+            self.publisher.publish_risk_updated(
+                agent_output=output,
+                correlation_id=correlation_id,
+                key=ticker,
+            )
+
+        return output
 

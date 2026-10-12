@@ -6,10 +6,12 @@ portfolio-level reasoning, holdings analysis, allocation risk, and position impa
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 from pydantic import BaseModel, Field
 
 from finos.core.agents.base import AgentStatus, FinOSAgentInput, FinOSAgentOutput, FinOSDomainAgent
+from finos.core.messaging.publisher import EventPublisher
 from tradingagents.agents.managers.portfolio_manager import create_portfolio_manager
 
 
@@ -30,8 +32,9 @@ class PortfolioAssessment(BaseModel):
 class PortfolioAgent(FinOSDomainAgent):
     """FinOS domain agent for portfolio decision making, allocation, and risk management."""
 
-    def __init__(self, llm: Any = None) -> None:
+    def __init__(self, llm: Any = None, publisher: EventPublisher | None = None) -> None:
         self.llm = llm
+        self.publisher = publisher or EventPublisher()
         if llm:
             self.pm_node = create_portfolio_manager(llm)
         else:
@@ -63,6 +66,12 @@ class PortfolioAgent(FinOSDomainAgent):
             )
 
         context = agent_input.context or {}
+        correlation_id = (
+            context.get("correlation_id")
+            or context.get("run_id")
+            or context.get("execution_id")
+            or str(uuid.uuid4())
+        )
         prev_outputs = agent_input.relevant_previous_outputs or {}
 
         portfolio_ctx_str = context.get("portfolio_context", "")
@@ -151,7 +160,7 @@ class PortfolioAgent(FinOSDomainAgent):
             confidence=0.88 if has_user_portfolio else 0.70,
         )
 
-        return FinOSAgentOutput(
+        output = FinOSAgentOutput(
             agent_name=self.name,
             entity_id=ticker,
             as_of_date=as_of_date,
@@ -166,6 +175,17 @@ class PortfolioAgent(FinOSDomainAgent):
                 "has_user_portfolio": has_user_portfolio,
                 "recommended_rating": rating,
                 "concentration_warning": concentration_warning,
+                "as_of_date": as_of_date,
             },
         )
+
+        # Optional Kafka Event Emission: portfolio.updated
+        if self.publisher.enabled and ticker:
+            self.publisher.publish_portfolio_updated(
+                agent_output=output,
+                correlation_id=correlation_id,
+                key=ticker,
+            )
+
+        return output
 

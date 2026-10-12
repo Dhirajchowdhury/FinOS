@@ -6,10 +6,12 @@ interpret, and extract financial implications from key macro indicators.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 from pydantic import BaseModel, Field
 
 from finos.core.agents.base import AgentStatus, FinOSAgentInput, FinOSAgentOutput, FinOSDomainAgent
+from finos.core.messaging.publisher import EventPublisher
 from tradingagents.dataflows.vendors.fred import get_macro_data, FredNotConfiguredError
 
 
@@ -32,8 +34,9 @@ class MacroAssessment(BaseModel):
 class MacroEconomyAgent(FinOSDomainAgent):
     """FinOS domain agent for macroeconomic interpretation and analysis."""
 
-    def __init__(self, llm: Any = None) -> None:
+    def __init__(self, llm: Any = None, publisher: EventPublisher | None = None) -> None:
         self.llm = llm
+        self.publisher = publisher or EventPublisher()
 
     @property
     def name(self) -> str:
@@ -61,6 +64,12 @@ class MacroEconomyAgent(FinOSDomainAgent):
             )
 
         context = agent_input.context or {}
+        correlation_id = (
+            context.get("correlation_id")
+            or context.get("run_id")
+            or context.get("execution_id")
+            or str(uuid.uuid4())
+        )
         macro_report = context.get("macro_report", "")
 
         indicators = {
@@ -140,7 +149,7 @@ class MacroEconomyAgent(FinOSDomainAgent):
 
         summary_msg = f"Macro assessment for {entity_id} as of {as_of_date}: Regime - {economic_regime}."
 
-        return FinOSAgentOutput(
+        output = FinOSAgentOutput(
             agent_name=self.name,
             entity_id=entity_id,
             as_of_date=as_of_date,
@@ -153,5 +162,16 @@ class MacroEconomyAgent(FinOSDomainAgent):
                 "source": "fred_macro_vendor",
                 "indicators_queried": list(indicators.keys()),
                 "valid_indicators_count": valid_indicators,
+                "as_of_date": as_of_date,
             },
         )
+
+        # Optional Kafka Event Emission: macro.updated
+        if self.publisher.enabled and entity_id:
+            self.publisher.publish_macro_updated(
+                agent_output=output,
+                correlation_id=correlation_id,
+                key=entity_id,
+            )
+
+        return output
