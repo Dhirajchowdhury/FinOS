@@ -20,6 +20,55 @@ _DHAN_MASTER_CACHE: List[Dict[str, str]] = []
 _DHAN_CACHE_TIMESTAMP: float = 0
 _DHAN_CACHE_TTL_SECONDS: float = 86400  # 24 hours
 
+# Known company alias mapping for fast & deterministic ticker resolution
+KNOWN_COMPANY_ALIASES: Dict[str, str] = {
+    "coal india": "COALINDIA.NS",
+    "coal india limited": "COALINDIA.NS",
+    "coalindia": "COALINDIA.NS",
+    "vedanta": "VEDL.NS",
+    "reliance": "RELIANCE.NS",
+    "reliance industries": "RELIANCE.NS",
+    "tcs": "TCS.NS",
+    "tata consultancy services": "TCS.NS",
+    "tata steel": "TATASTEEL.NS",
+    "tata motors": "TATAMOTORS.NS",
+    "infosys": "INFY.NS",
+    "wipro": "WIPRO.NS",
+    "hdfc bank": "HDFCBANK.NS",
+    "icici bank": "ICICIBANK.NS",
+    "sbi": "SBIN.NS",
+    "state bank of india": "SBIN.NS",
+    "bharti airtel": "BHARTIARTL.NS",
+    "airtel": "BHARTIARTL.NS",
+    "itc": "ITC.NS",
+    "l&t": "LT.NS",
+    "larsen & toubro": "LT.NS",
+    "larsen and toubro": "LT.NS",
+    "maruti": "MARUTI.NS",
+    "maruti suzuki": "MARUTI.NS",
+    "nvidia": "NVDA",
+    "apple": "AAPL",
+    "microsoft": "MSFT",
+    "google": "GOOGL",
+    "alphabet": "GOOGL",
+    "amazon": "AMZN",
+    "tesla": "TSLA",
+    "meta": "META",
+}
+
+
+def clean_prompt_for_resolution(prompt: str) -> str:
+    """Strips conversational phrases and filler words from user prompt before entity search."""
+    if not prompt:
+        return ""
+    cleaned = re.sub(
+        r'(?i)\b(tell|me|about|what|is|how|are|the|details|info|information|analyze|analysis|show|get|check|perform|financial|of|for|stock|share|report|risks|on|regarding|evaluate|give|view|holding|company|can|you|please|find)\b',
+        ' ',
+        prompt,
+    )
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
+
 
 def fetch_dhan_scrip_master() -> List[Dict[str, str]]:
     """Fetches and caches the Dhan scrip master CSV reference data."""
@@ -129,7 +178,7 @@ def search_dhan_instrument_master(query: str) -> Optional[str]:
     if not scrips:
         return None
 
-    clean_query = re.sub(r'^(ANALYZE|SHOW|GET|CHECK|PERFORM|FINANCIAL|ANALYSIS|OF|FOR|THE|STOCK|SHARE)\s+', '', query.strip().upper()).strip()
+    clean_query = clean_prompt_for_resolution(query).upper()
     if not clean_query:
         clean_query = query.strip().upper()
 
@@ -170,7 +219,7 @@ def search_dhan_instrument_master(query: str) -> Optional[str]:
 
 
 def resolve_entity(prompt: str, market: str = "NSE India") -> Optional[str]:
-    """Master entity resolution function following Priority 1-4 pipeline.
+    """Master entity resolution function following Priority 1-5 pipeline.
 
     Returns canonical ticker string if resolved, or None if unresolved/ambiguous.
     NEVER defaults to RELIANCE.NS.
@@ -178,25 +227,32 @@ def resolve_entity(prompt: str, market: str = "NSE India") -> Optional[str]:
     if not prompt or not prompt.strip():
         return None
 
-    # 1. Priority 1: Explicit ticker detection
+    # 1. Priority 1: Explicit ticker detection (e.g. RELIANCE.NS, COALINDIA.NS, AAPL)
     explicit = extract_explicit_ticker(prompt)
     if explicit:
         return explicit
 
-    # Clean query for search
-    query_text = re.sub(r'(?i)\b(analyze|show|get|check|perform|financial|analysis|of|for|the|stock|share|report|risks)\b', '', prompt).strip()
-    if not query_text:
-        query_text = prompt.strip()
+    # Clean query text
+    clean_query = clean_prompt_for_resolution(prompt)
+    query_lower = clean_query.lower() if clean_query else prompt.strip().lower()
 
-    # 2. Priority 2: Yahoo Finance Search API
-    yahoo_result = search_yahoo_finance(query_text, market=market)
+    # 2. Priority 2: Direct Alias Lookup in Known Company Map
+    if query_lower in KNOWN_COMPANY_ALIASES:
+        candidate = KNOWN_COMPANY_ALIASES[query_lower]
+        if validate_yahoo_ticker(candidate):
+            return candidate
+
+    # 3. Priority 3: Yahoo Finance Search API on cleaned prompt text
+    search_term = clean_query if clean_query else prompt.strip()
+    yahoo_result = search_yahoo_finance(search_term, market=market)
     if yahoo_result:
         return yahoo_result
 
-    # 3. Priority 3: Dhan Instrument Master Fallback
-    dhan_result = search_dhan_instrument_master(query_text)
+    # 4. Priority 4: Dhan Instrument Master Fallback
+    dhan_result = search_dhan_instrument_master(search_term)
     if dhan_result:
         return dhan_result
 
-    # 4. Priority 4: Unresolved / Ambiguous -> Return None
+    # 5. Priority 5: Unresolved / Ambiguous -> Return None
     return None
+

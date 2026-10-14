@@ -1,1 +1,0 @@
-Trading proposal for TCS.NS on 2026-09-25: Proposed Action - Hold.

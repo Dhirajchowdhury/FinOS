@@ -1,18 +1,17 @@
-import os
 import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
-# Ensure project root is on sys.path for finos and tradingagents imports
+# Ensure project root is on sys.path for tradingagents imports
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-import re
 import uuid
 import json
 from sqlalchemy.orm import Session
@@ -23,11 +22,14 @@ from app.models.user import User
 from app.models.analysis_record import AnalysisRecord
 from app.services.entity_resolver import resolve_entity
 
-from finos.core.graph.engine import FinosGraphEngine
-from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.llm_clients.factory import build_llm_kwargs, create_llm_client
+from tradingagents.agents.sentiment_impact import pipeline
+from tradingagents.agents.sentiment_impact.agent import run_sentiment_impact
+from tradingagents.agents.sentiment_impact.schemas import (
+    ReportStatus,
+    SentimentImpactResponse,
+)
 
-router = APIRouter(prefix="/analysis", tags=["Analysis Engine"])
+router = APIRouter(prefix="/analysis", tags=["Sentiment & Market Impact"])
 
 
 class AnalysisRequest(BaseModel):
@@ -47,51 +49,46 @@ class AnalysisRequest(BaseModel):
         None,
         description="As-of date in YYYY-MM-DD format. Defaults to current date.",
     )
+    window_days: int = Field(
+        7,
+        ge=1,
+        le=90,
+        description="Number of days of news to consider ending at the as-of date.",
+    )
     context: Optional[dict[str, Any]] = Field(
         default_factory=dict,
         description="Additional context parameters for execution.",
     )
 
 
-from app.services.entity_resolver import resolve_entity
-
-
-def _get_engine() -> FinosGraphEngine:
-    """Instantiates FinosGraphEngine with Google Gemini client if GOOGLE_API_KEY is available."""
-    llm = None
-    provider = DEFAULT_CONFIG.get("llm_provider", "").lower()
-    if provider == "google" and os.getenv("GOOGLE_API_KEY"):
-        try:
-            kwargs = build_llm_kwargs(DEFAULT_CONFIG)
-            kwargs["api_key"] = os.getenv("GOOGLE_API_KEY")
-            client = create_llm_client(
-                provider=provider,
-                model=DEFAULT_CONFIG.get("deep_think_llm", "gemini-3.8-flash"),
-                **kwargs,
-            )
-            llm = client.get_llm()
-        except Exception:
-            pass
-    return FinosGraphEngine(llm=llm)
+def _record_status(data_status: ReportStatus) -> str:
+    if data_status is ReportStatus.FAILED:
+        return "failed"
+    if data_status is ReportStatus.UNAVAILABLE:
+        return "unavailable"
+    return "completed"
 
 
 @router.post(
     "",
-    response_model=dict[str, Any],
-    summary="Execute complete 10-agent FinOS analysis workflow",
-    description="Triggers real FinosGraphEngine DAG orchestration across 10 domain agents and returns state output.",
+    response_model=SentimentImpactResponse,
+    summary="Run the sentiment & market-impact analysis",
+    description=(
+        "Runs the sentiment & market-impact pipeline (normalize news, deterministic "
+        "baseline, optional LLM enrichment) and returns the versioned contract."
+    ),
 )
 @router.post(
     "/",
-    response_model=dict[str, Any],
+    response_model=SentimentImpactResponse,
     include_in_schema=False,
 )
 def run_financial_analysis(
     payload: AnalysisRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    """Authenticated endpoint executing the real FinOS 10-agent DAG workflow."""
+) -> SentimentImpactResponse:
+    """Authenticated endpoint running the sentiment & market-impact pipeline."""
     if not payload.request or not payload.request.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -105,35 +102,37 @@ def run_financial_analysis(
         if not resolved:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Could not uniquely identify the requested company. Please provide the ticker or exchange symbol.",
+                detail=(
+                    "Could not uniquely identify the requested company. "
+                    "Please provide the ticker or exchange symbol."
+                ),
             )
         target_symbol = resolved
-    target_as_of = payload.as_of_date.strip() if payload.as_of_date and payload.as_of_date.strip() else datetime.now().strftime("%Y-%m-%d")
-    target_market = payload.market if payload.market else "NSE India"
+    target_as_of = (
+        payload.as_of_date.strip()
+        if payload.as_of_date and payload.as_of_date.strip()
+        else datetime.now().strftime("%Y-%m-%d")
+    )
 
     try:
-        engine = _get_engine()
-        state = engine.execute(
+        response = run_sentiment_impact(
             entity_id=target_symbol,
-            as_of_date=target_as_of,
             request=payload.request,
             market=target_market,
+            as_of_date=target_as_of,
+            window_days=payload.window_days,
             context=payload.context or {},
         )
-        # Ensure user info is recorded in metadata
-        state["metadata"]["requested_by_user_email"] = current_user.email
-        encoded_state = jsonable_encoder(state)
+    except Exception as exc:  # noqa: BLE001 - surface a safe, generic failure
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Sentiment & market-impact execution failure: {str(exc)}",
+        )
 
-        # Save persistent AnalysisRecord for authenticated user
+    try:
         record_id = f"an_{uuid.uuid4().hex[:12]}"
-        state_json_str = json.dumps(encoded_state)
-
-        report_data = encoded_state.get("report") or {}
-        if isinstance(report_data, dict):
-            final_report_md = report_data.get("metadata", {}).get("full_report_markdown") or report_data.get("findings", {}).get("summary") or report_data.get("summary", "")
-        else:
-            final_report_md = str(report_data)
-
+        response = response.model_copy(update={"id": record_id, "analysis_id": record_id})
+        encoded = jsonable_encoder(response)
         record = AnalysisRecord(
             id=record_id,
             user_id=current_user.id,
@@ -141,19 +140,19 @@ def run_financial_analysis(
             entity_id=target_symbol,
             market=target_market,
             as_of_date=target_as_of,
-            state_json=state_json_str,
-            final_report=final_report_md,
-            status="completed",
+            state_json=json.dumps(encoded),
+            final_report=pipeline.render_report_markdown(response.report),
+            status=_record_status(response.data_status),
         )
         db.add(record)
         db.commit()
-
-        encoded_state["id"] = record_id
-        encoded_state["analysis_id"] = record_id
-        return encoded_state
-    except Exception as exc:
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 - persistence must not lose the result
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"FinOS multi-agent execution failure: {str(exc)}",
+            detail=f"Failed to persist analysis record: {str(exc)}",
         )
 
+    return response

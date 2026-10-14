@@ -45,4 +45,5 @@ def test_investment_agent_missing_context_fallback():
 
     assert out.agent_name == "Investment Agent"
     assert isinstance(out.findings, InvestmentAssessment)
-    assert out.findings.rating == "Hold"
+    assert out.findings.rating == "UNAVAILABLE"
+    assert out.findings.data_status == "DATA_UNAVAILABLE"

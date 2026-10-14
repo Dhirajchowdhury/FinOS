@@ -48,8 +48,12 @@ include = ["tradingagents*", "cli*", "finos*"]
 [tool.setuptools.package-data]
 cli = ["static/*"]
 
+[tool.pyright]
+extraPaths = [".", "backend"]
+
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "backend/tests"]
+pythonpath = [".", "backend"]
 addopts = "-ra --strict-markers"
 markers = [
     "unit: fast isolated unit tests",

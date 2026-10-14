@@ -1,89 +1,117 @@
-"""Pure-Python CSV generator for FinOS institutional financial analysis reports."""
+"""Pure-Python CSV generator for FinOS sentiment & market-impact reports."""
 
 import csv
 import io
-import json
+
+
+def _as_dict(value):
+    return value if isinstance(value, dict) else {}
 
 
 def generate_report_csv(record, state: dict) -> str:
-    """Generates clean CSV output from an AnalysisRecord and state dict."""
+    """Generates clean CSV output from an AnalysisRecord and its response state."""
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Report Header
-    writer.writerow(["FinOS Financial Analysis Report Dossier"])
+    report = _as_dict(_as_dict(state).get("report"))
+    sentiment = _as_dict(report.get("sentiment"))
+    data_quality = _as_dict(report.get("data_quality"))
+
+    writer.writerow(["FinOS Sentiment & Market Impact Report"])
     writer.writerow(["Report ID", record.id])
     writer.writerow(["User Request", record.request or ""])
     writer.writerow(["Entity ID", record.entity_id or ""])
     writer.writerow(["Market", record.market or ""])
     writer.writerow(["As of Date", record.as_of_date or ""])
-    writer.writerow(["Created At", record.created_at.isoformat() if hasattr(record, "created_at") and record.created_at else ""])
-    writer.writerow(["Status", record.status or "completed"])
-    writer.writerow([])
-
-    # Table Header for 10 Domain Agents
     writer.writerow([
-        "Agent Key",
-        "Agent Name",
-        "Status",
-        "Summary",
-        "Findings / Recommendation",
-        "Evidence Items",
-        "Confidence Score",
-        "Data Quality / Source",
+        "Created At",
+        record.created_at.isoformat()
+        if hasattr(record, "created_at") and record.created_at else "",
     ])
-
-    agent_keys = [
-        ("investment", "Investment Agent"),
-        ("news", "News Agent"),
-        ("macro", "Macro Economy Agent"),
-        ("risk", "Risk Agent"),
-        ("credit", "Credit Agent"),
-        ("portfolio", "Portfolio Agent"),
-        ("trading", "Trading Agent"),
-        ("tax", "Tax Agent"),
-        ("fraud", "Fraud Agent"),
-        ("report", "Report Agent"),
-    ]
-
-    for key, default_label in agent_keys:
-        out = state.get(key)
-        if not out:
-            continue
-
-        if isinstance(out, dict):
-            agent_name = out.get("agent_name", default_label)
-            status = out.get("status", "ACTIVE")
-            summary = out.get("summary", "")
-            findings = json.dumps(out.get("findings", {}))
-            evidence_list = out.get("evidence", [])
-            evidence = " | ".join(evidence_list) if isinstance(evidence_list, list) else str(evidence_list)
-            confidence = out.get("confidence", "")
-            metadata = out.get("metadata", {})
-            data_quality = metadata.get("source") or metadata.get("data_quality") or json.dumps(metadata)
-        else:
-            agent_name = default_label
-            status = "COMPLETED"
-            summary = str(out)
-            findings = ""
-            evidence = ""
-            confidence = ""
-            data_quality = ""
-
-        writer.writerow([
-            key,
-            agent_name,
-            status,
-            summary,
-            findings,
-            evidence,
-            confidence,
-            data_quality,
-        ])
-
+    writer.writerow(["Status", record.status or "completed"])
+    writer.writerow(["Data Status", _as_dict(state).get("data_status", "")])
     writer.writerow([])
-    writer.writerow(["FULL SYNTHESIZED REPORT MARKDOWN"])
-    final_report = record.final_report or state.get("report", {}).get("metadata", {}).get("full_report_markdown") or ""
+
+    writer.writerow(["SENTIMENT"])
+    writer.writerow(["Band", "Score", "Confidence", "Source", "Rationale"])
+    score = sentiment.get("score")
+    writer.writerow([
+        sentiment.get("band", ""),
+        "" if score is None else score,
+        sentiment.get("confidence", ""),
+        sentiment.get("source", ""),
+        sentiment.get("rationale", ""),
+    ])
+    writer.writerow([])
+
+    writer.writerow(["OBSERVED FACTS"])
+    writer.writerow(["Evidence ID", "Source", "Title", "Publisher", "Published At", "URL"])
+    for ref in report.get("observed_facts", []) or []:
+        ref = _as_dict(ref)
+        writer.writerow([
+            ref.get("evidence_id", ""),
+            ref.get("source", ""),
+            ref.get("title", ""),
+            ref.get("publisher", ""),
+            ref.get("published_at", ""),
+            ref.get("url", ""),
+        ])
+    writer.writerow([])
+
+    writer.writerow(["EVENTS"])
+    writer.writerow(["Event ID", "Type", "Summary", "Sectors", "Macro Factors", "Confidence", "Evidence IDs"])
+    for event in report.get("events", []) or []:
+        event = _as_dict(event)
+        writer.writerow([
+            event.get("event_id", ""),
+            event.get("event_type", ""),
+            event.get("summary", ""),
+            " | ".join(event.get("sectors", []) or []),
+            " | ".join(event.get("macro_factors", []) or []),
+            event.get("confidence", ""),
+            " | ".join(event.get("evidence_ids", []) or []),
+        ])
+    writer.writerow([])
+
+    writer.writerow(["IMPACT HYPOTHESES (unverified)"])
+    writer.writerow(["Pathway ID", "Source Factor", "Target", "Direction", "Horizon", "Mechanism", "Evidence IDs"])
+    for path in report.get("impact_hypotheses", []) or []:
+        path = _as_dict(path)
+        target = _as_dict(path.get("target"))
+        writer.writerow([
+            path.get("pathway_id", ""),
+            path.get("source_factor", ""),
+            target.get("entity_id", ""),
+            path.get("direction", ""),
+            path.get("horizon", ""),
+            path.get("mechanism", ""),
+            " | ".join(path.get("supporting_evidence_ids", []) or []),
+        ])
+    writer.writerow([])
+
+    writer.writerow(["DATA QUALITY"])
+    writer.writerow(["Vendor", "Status", "Freshness", "Retrieved At"])
+    for source in data_quality.get("sources", []) or []:
+        source = _as_dict(source)
+        writer.writerow([
+            source.get("vendor", ""),
+            source.get("status", ""),
+            source.get("freshness", ""),
+            source.get("retrieved_at", ""),
+        ])
+    for missing in data_quality.get("missing_inputs", []) or []:
+        writer.writerow(["Missing Input", missing])
+    writer.writerow([])
+
+    writer.writerow(["UNAVAILABLE EVIDENCE"])
+    writer.writerow(["Capability", "Status", "Reason"])
+    for item in report.get("unavailable_evidence", []) or []:
+        item = _as_dict(item)
+        writer.writerow([item.get("capability", ""), item.get("status", ""), item.get("reason", "")])
+    writer.writerow([])
+
+    writer.writerow(["FULL REPORT"])
+    final_report = record.final_report or ""
     for paragraph in final_report.split("\n"):
         if paragraph.strip():
             writer.writerow([paragraph.strip()])

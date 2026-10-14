@@ -13,6 +13,7 @@ import {
   FileText,
   TrendingUp,
   Receipt,
+  LineChart,
   Cpu,
   History,
   Eye,
@@ -47,6 +48,7 @@ export function AppSidebar({
     { label: "Reports", href: "/reports", icon: FileText },
     { label: "Market Summary", href: "/market", icon: TrendingUp },
     { label: "Upload Payslip", href: "/payslip", icon: Receipt },
+    { label: "Sentiment Analysis", href: "/sentiment-analysis", icon: LineChart },
   ];
 
   const secondaryNavigation = [

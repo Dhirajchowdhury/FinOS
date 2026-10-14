@@ -1,1 +1,0 @@
-Trade Proposal for RELIANCE.NS on 2026-09-25: Action - Hold. (Unexecuted Trade Proposal).

@@ -16,6 +16,16 @@ def test_explicit_ticker():
     """1. Explicit ticker preserved directly."""
     assert resolve_entity("Analyze RELIANCE.NS") == "RELIANCE.NS"
     assert resolve_entity("Check VEDL.NS performance") == "VEDL.NS"
+    assert resolve_entity("COALINDIA.NS") == "COALINDIA.NS"
+
+
+def test_coal_india_entity_resolution():
+    """Verify multi-word company queries for Coal India resolve to COALINDIA.NS."""
+    assert resolve_entity("coal india") == "COALINDIA.NS"
+    assert resolve_entity("Coal India") == "COALINDIA.NS"
+    assert resolve_entity("tell me about coal india") == "COALINDIA.NS"
+    assert resolve_entity("analyze coal india") == "COALINDIA.NS"
+
 
 
 def test_yahoo_resolvable_company_vedanta():

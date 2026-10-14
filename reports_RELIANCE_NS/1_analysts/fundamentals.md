@@ -1,1 +1,0 @@
-Credit assessment for RELIANCE.NS as of 2026-09-25: Estimated Rating is BBB. 1-Year Default Probability: 1.5%. Balance sheet profile: Moderate.

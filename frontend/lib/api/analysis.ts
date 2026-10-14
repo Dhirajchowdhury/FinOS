@@ -1,7 +1,6 @@
 import { apiClient } from "./client";
 import { MultiAgentScenario } from "@/types/analysis";
 import { MOCK_MULTI_AGENT_SCENARIOS } from "@/lib/mock/analysis";
-import { AgentId } from "@/types/agent";
 import { ConversationMessage } from "@/components/ask-finos/FinOSResponseBubble";
 
 export interface RealAnalysisRequest {
@@ -9,157 +8,188 @@ export interface RealAnalysisRequest {
   request: string;
   market?: string;
   as_of_date?: string;
+  window_days?: number;
   context?: Record<string, any>;
 }
 
-export interface FinosStateResponse {
+export interface EvidenceRef {
+  evidence_id: string;
+  source: string;
+  title: string;
+  url?: string | null;
+  publisher?: string | null;
+  published_at?: string | null;
+  retrieved_at?: string | null;
+}
+
+export interface SentimentRead {
+  band: string;
+  score: number | null;
+  confidence: "low" | "medium" | "high";
+  rationale: string;
+  evidence_ids: string[];
+  source: "llm" | "deterministic" | "none";
+}
+
+export interface EventClaim {
+  event_id: string;
+  event_type: string;
+  summary: string;
+  entities: string[];
+  sectors: string[];
+  macro_factors: string[];
+  published_at?: string | null;
+  evidence_ids: string[];
+  confidence: string;
+  uncertainty: string;
+}
+
+export interface TransmissionPath {
+  pathway_id: string;
+  source_factor: string;
+  target: { entity_id: string; kind: string; confidence: string };
+  direction: string;
+  mechanism: string;
+  horizon: string;
+  supporting_evidence_ids: string[];
+  counterevidence_ids: string[];
+  confidence: string;
+  uncertainty: string;
+  is_verified: boolean;
+}
+
+export interface SourceQuality {
+  vendor: string;
+  retrieved_at?: string | null;
+  freshness: string;
+  status: string;
+}
+
+export interface DataQuality {
+  sources: SourceQuality[];
+  missing_inputs: string[];
+  notes: string[];
+}
+
+export interface UnavailableEvidence {
+  capability: string;
+  status: string;
+  reason: string;
+}
+
+export interface SentimentImpactReport {
+  observed_facts: EvidenceRef[];
+  sentiment: SentimentRead;
+  events: EventClaim[];
+  impact_hypotheses: TransmissionPath[];
+  data_quality: DataQuality;
+  unavailable_evidence: UnavailableEvidence[];
+  validation?: Record<string, any> | null;
+  causal?: Record<string, any> | null;
+}
+
+export interface ReportRequestInfo {
   entity_id: string;
-  entity_type?: string;
-  market?: string;
-  as_of_date?: string;
-  request: string;
-  news?: any;
-  macro?: any;
-  credit?: any;
-  investment?: any;
-  risk?: any;
-  portfolio?: any;
-  trading?: any;
-  tax?: any;
-  fraud?: any;
-  report?: any;
-  data_quality?: any;
-  missing_data?: string[];
-  errors?: string[];
-  provenance?: Record<string, any>;
-  sender?: string;
-  metadata?: Record<string, any>;
+  entity_type?: string | null;
+  market?: string | null;
+  as_of_date?: string | null;
+  window_days: number;
 }
 
 /**
- * Adapter converting raw FinosState JSON from FastAPI backend into ConversationMessage shape for UI.
- * Does NOT fabricate any fake metrics, confidence scores, or mock findings.
+ * Versioned response contract returned by POST /analysis.
+ */
+export interface SentimentImpactState {
+  contract_version: string;
+  id?: string;
+  analysis_id?: string;
+  request: ReportRequestInfo;
+  data_status: string;
+  report: SentimentImpactReport;
+  errors: string[];
+}
+
+function _scoreLabel(score: number | null | undefined): string {
+  return score === null || score === undefined ? "n/a" : `${score}/10`;
+}
+
+/**
+ * Adapter converting the sentiment & market-impact response into the
+ * ConversationMessage shape rendered by the UI. It does not fabricate metrics:
+ * every finding derives from the returned report, and unavailable capabilities
+ * are surfaced explicitly.
  */
 export function adapterFinosStateToConversationMessage(
-  state: FinosStateResponse,
+  state: SentimentImpactState,
   deepReasoning: boolean = false
 ): ConversationMessage {
-  const reportFindings = state.report?.findings || state.report;
-  const rawMainText =
-    reportFindings?.summary ||
-    state.report?.summary ||
-    (typeof state.report === "string" ? state.report : null) ||
-    state.investment?.findings?.thesis ||
-    state.investment?.summary ||
-    `FinOS 10-agent financial analysis completed for ${state.entity_id || "the requested entity"}.`;
+  const report = state.report;
+  const sentiment = report?.sentiment;
+  const entity = state.request?.entity_id || report?.observed_facts?.[0]?.title || "the requested entity";
 
-  // Clean main text of repetitive boilerplates if any
-  const mainText = typeof rawMainText === "string" 
-    ? rawMainText.replace(/Synthesized upstream [^.]+?\./gi, "").trim()
-    : rawMainText;
-
-  const agentsConsulted: AgentId[] = [
-    "news",
-    "macro",
-    "credit",
-    "investment",
-    "risk",
-    "portfolio",
-    "trading",
-    "tax",
-    "fraud",
-    "report",
-  ];
-
-  const agentDetails: Record<string, { id: AgentId; status?: string; data_quality?: string }> = {};
-  for (const key of agentsConsulted) {
-    const agentOutput = (state as any)[key];
-    if (agentOutput) {
-      agentDetails[key] = {
-        id: key,
-        status: agentOutput.status || (agentOutput.summary || agentOutput.findings ? "AVAILABLE" : "COMPLETED"),
-        data_quality: agentOutput.data_quality || agentOutput.metadata?.data_quality,
-      };
-    }
-  }
-
-  let consensusScore: number | undefined = undefined;
-  if (typeof state.investment?.confidence === "number") {
-    consensusScore = Math.round(state.investment.confidence * 100);
-  } else if (typeof state.investment?.findings?.confidence === "number") {
-    consensusScore = Math.round(state.investment.findings.confidence * 100);
-  } else if (typeof state.report?.confidence === "number") {
-    consensusScore = Math.round(state.report.confidence * 100);
+  let mainText: string;
+  if (!sentiment || state.data_status === "UNAVAILABLE") {
+    mainText =
+      `No usable news evidence was available for ${entity}, so no defensible ` +
+      `sentiment conclusion can be drawn. See the data-quality section for the reason.`;
+  } else {
+    mainText =
+      `Overall sentiment for ${entity} is ${String(sentiment.band).replace(/_/g, " ")} ` +
+      `(score ${_scoreLabel(sentiment.score)}, confidence: ${sentiment.confidence}). ` +
+      `${sentiment.rationale || ""}`.trim();
   }
 
   const findings: string[] = [];
+  if (sentiment) {
+    findings.push(
+      `SENTIMENT | Band: ${String(sentiment.band).toUpperCase()} | Score: ${_scoreLabel(sentiment.score)} | ` +
+        `Confidence: ${sentiment.confidence} | Source: ${sentiment.source}`
+    );
+  }
+  findings.push(`DATA STATUS | ${state.data_status}`);
 
-  // Structured Risk Assessment
-  const riskLevel = state.risk?.findings?.overall_risk_level || state.risk?.summary || "MEDIUM";
-  const riskLevelClean = typeof riskLevel === "string" ? riskLevel.split(".")[0].toUpperCase() : "MEDIUM";
-  const investStance = state.investment?.findings?.rating || state.investment?.findings?.thesis || "HOLD";
-  const stanceClean = typeof investStance === "string" ? investStance.split(".")[0].toUpperCase() : "HOLD";
-  
-  findings.push(`RISK ASSESSMENT | Overall Risk: ${riskLevelClean} | Stance: ${stanceClean}`);
-
-  // Structured Credit Profile
-  const creditRating = state.credit?.findings?.rating || state.credit?.findings?.credit_rating || "AA";
-  const leverageRatio = state.credit?.findings?.leverage_ratio_debt_ebitda !== undefined 
-    ? `${state.credit.findings.leverage_ratio_debt_ebitda}x`
-    : "Low";
-  const defaultProb = state.credit?.findings?.one_year_default_prob !== undefined 
-    ? `${(state.credit.findings.one_year_default_prob * 100).toFixed(1)}%`
-    : "0.5%";
-
-  if (state.credit?.status === "DATA_UNAVAILABLE") {
-    findings.push(`CREDIT PROFILE | Status: Fundamentals Data Unavailable`);
-  } else {
-    findings.push(`CREDIT PROFILE | Rating: ${creditRating} | Leverage: ${leverageRatio} | 1Y Default Prob: ${defaultProb}`);
+  const facts = report?.observed_facts || [];
+  if (facts.length > 0) {
+    const vendors = Array.from(new Set(facts.map((f) => f.source))).join(", ");
+    findings.push(`OBSERVED FACTS | ${facts.length} article(s) | Sources: ${vendors}`);
   }
 
-  // Structured News & Macro Context
-  const newsSentiment = state.news?.findings?.sentiment_label || state.news?.summary || "NEUTRAL";
-  const newsSentimentClean = typeof newsSentiment === "string" ? newsSentiment.split(".")[0].toUpperCase() : "NEUTRAL";
-  const macroRegime = state.macro?.findings?.economic_regime || state.macro?.summary || "Expansionary";
-  const macroRegimeClean = typeof macroRegime === "string" ? macroRegime.split(".")[0] : "Expansionary";
+  const events = report?.events || [];
+  for (const event of events.slice(0, 5)) {
+    findings.push(
+      `EVENT: ${String(event.event_type).toUpperCase()} | ${event.summary} | ` +
+        `confidence: ${event.confidence}`
+    );
+  }
 
-  findings.push(`NEWS & MACRO | Sentiment: ${newsSentimentClean} | Regime: ${macroRegimeClean}`);
+  const paths = report?.impact_hypotheses || [];
+  for (const path of paths.slice(0, 5)) {
+    findings.push(
+      `IMPACT HYPOTHESIS | ${path.source_factor} → ${path.target?.entity_id || entity} | ` +
+        `${path.direction} | horizon: ${path.horizon}`
+    );
+  }
 
-  // Structured Tax Audit
-  const taxStatus = state.tax?.metadata?.tax_calculation_status || state.tax?.status || "DATA UNAVAILABLE";
-  findings.push(`TAX AUDIT | Status: ${taxStatus}`);
+  for (const unavailable of report?.unavailable_evidence || []) {
+    findings.push(`UNAVAILABLE: ${unavailable.capability} | ${unavailable.reason}`);
+  }
 
-  // Structured Fraud Monitoring
-  const fraudStatus = state.fraud?.metadata?.transaction_monitoring_status || state.fraud?.status || "DATA UNAVAILABLE";
-  findings.push(`FRAUD MONITORING | Status: ${fraudStatus}`);
-
-  // Real Actions
   const actions: string[] = [];
-  const tradingFindings = state.trading?.findings;
-  if (tradingFindings?.action) {
-    let actionText = `Proposed Trade Action: ${tradingFindings.action}`;
-    if (tradingFindings.rationale) {
-      actionText += ` — ${tradingFindings.rationale}`;
+  for (const path of paths.slice(0, 3)) {
+    if (path.mechanism) {
+      actions.push(`Monitor ${path.source_factor} → ${path.target?.entity_id || entity}: ${path.mechanism}`);
     }
-    actions.push(actionText);
   }
-  const portfolioFindings = state.portfolio?.findings;
-  if (portfolioFindings?.max_position_weight_pct) {
-    actions.push(`Position Allocation Limit: Capped at ${portfolioFindings.max_position_weight_pct}% max position weight.`);
+  if (state.data_status !== "AVAILABLE") {
+    actions.push("Treat these results as provisional; some evidence was unavailable.");
   }
 
-  // Real Data Sources
   const sourcesSet = new Set<string>();
-  if (state.credit?.status === "REAL" || state.news?.status === "REAL" || state.news?.status === "PARTIAL") {
-    sourcesSet.add("Yahoo Finance (yfinance)");
+  for (const source of report?.data_quality?.sources || []) {
+    if (source.vendor) sourcesSet.add(source.vendor);
   }
-  if (state.macro?.status === "REAL" || state.macro?.data_sources_used?.includes("FRED API")) {
-    sourcesSet.add("FRED API");
-  }
-  if (state.investment?.status === "REAL" || state.risk?.status === "REAL" || state.trading?.status === "REAL") {
-    sourcesSet.add("Google Gemini (gemini-3.8-flash)");
-  }
-  sourcesSet.add("FinOS 10-Agent Engine");
+  sourcesSet.add("FinOS Sentiment Engine");
+  if (sentiment?.source === "llm") sourcesSet.add("LLM enrichment");
   const sources = Array.from(sourcesSet);
 
   return {
@@ -167,24 +197,21 @@ export function adapterFinosStateToConversationMessage(
     sender: "finos",
     text: mainText,
     timestamp: "Just now",
-    agentsConsulted,
-    agentDetails,
-    consensusScore,
     findings: findings.length > 0 ? findings : undefined,
     actions: actions.length > 0 ? actions : undefined,
     sources: sources.length > 0 ? sources : undefined,
     deepReasoning,
-    analysisId: (state as any).id || (state as any).analysis_id,
-    entity_id: state.entity_id,
+    analysisId: state.id || state.analysis_id,
+    entity_id: state.request?.entity_id,
   };
 }
 
 export const analysisApi = {
   /**
-   * Execute real 10-agent FinOS analysis via FastAPI backend.
+   * Execute the sentiment & market-impact analysis via the FastAPI backend.
    */
-  async runAnalysis(payload: RealAnalysisRequest): Promise<FinosStateResponse> {
-    return apiClient<FinosStateResponse>("/analysis", {
+  async runAnalysis(payload: RealAnalysisRequest): Promise<SentimentImpactState> {
+    return apiClient<SentimentImpactState>("/analysis", {
       method: "POST",
       body: JSON.stringify(payload),
     });
