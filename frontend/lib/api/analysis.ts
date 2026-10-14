@@ -20,6 +20,11 @@ export interface EvidenceRef {
   publisher?: string | null;
   published_at?: string | null;
   retrieved_at?: string | null;
+  relevance?: string | null;
+  relevance_reason?: string | null;
+  matched_entity?: string | null;
+  included_in_sentiment?: boolean | null;
+  source_feed?: string | null;
 }
 
 export interface SentimentRead {
@@ -29,6 +34,11 @@ export interface SentimentRead {
   rationale: string;
   evidence_ids: string[];
   source: "llm" | "deterministic" | "none";
+  method?: string | null;
+  positive_signals?: number | null;
+  negative_signals?: number | null;
+  article_count?: number | null;
+  total_retrieved?: number | null;
 }
 
 export interface EventClaim {
@@ -42,6 +52,18 @@ export interface EventClaim {
   evidence_ids: string[];
   confidence: string;
   uncertainty: string;
+  relevance?: string | null;
+  relevance_reason?: string | null;
+  matched_entity?: string | null;
+}
+
+export interface RelevanceSummary {
+  total_retrieved: number;
+  company_specific: number;
+  sector_relevant: number;
+  macro_context: number;
+  irrelevant: number;
+  included_in_sentiment: number;
 }
 
 export interface TransmissionPath {
@@ -82,6 +104,7 @@ export interface SentimentImpactReport {
   sentiment: SentimentRead;
   events: EventClaim[];
   impact_hypotheses: TransmissionPath[];
+  relevance_summary?: RelevanceSummary | null;
   data_quality: DataQuality;
   unavailable_evidence: UnavailableEvidence[];
   validation?: Record<string, any> | null;
@@ -152,6 +175,14 @@ export function adapterFinosStateToConversationMessage(
   if (facts.length > 0) {
     const vendors = Array.from(new Set(facts.map((f) => f.source))).join(", ");
     findings.push(`OBSERVED FACTS | ${facts.length} article(s) | Sources: ${vendors}`);
+  }
+
+  const relevance = report?.relevance_summary;
+  if (relevance) {
+    findings.push(
+      `RELEVANCE | company-specific: ${relevance.company_specific} | sector: ${relevance.sector_relevant} | ` +
+        `macro: ${relevance.macro_context} | irrelevant: ${relevance.irrelevant} | total: ${relevance.total_retrieved}`
+    );
   }
 
   const events = report?.events || [];

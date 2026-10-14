@@ -36,6 +36,26 @@ const SECTIONS_LIST: SectionInfo[] = [
   { key: "unavailable_evidence", name: "Unavailable Evidence", dotColor: "#ef4444" },
 ];
 
+const RELEVANCE_LABELS: Record<string, string> = {
+  COMPANY_SPECIFIC: "Company-specific",
+  SECTOR_RELEVANT: "Sector-relevant",
+  MACRO_CONTEXT: "Macro context",
+  IRRELEVANT: "Irrelevant",
+};
+
+function relevanceChipClass(relevance: string | null | undefined): string {
+  switch ((relevance || "").toUpperCase()) {
+    case "COMPANY_SPECIFIC":
+      return "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
+    case "SECTOR_RELEVANT":
+      return "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800";
+    case "MACRO_CONTEXT":
+      return "bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800";
+    default:
+      return "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700";
+  }
+}
+
 function FormatInline({ text }: { text: string }) {
   if (!text) return null;
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
@@ -347,6 +367,34 @@ function ReportsContent() {
               </div>
             </div>
             <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{s.rationale}</p>
+            {report.relevance_summary && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <div className="text-[10px] font-bold uppercase text-slate-400">Company-Specific</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white">
+                    {report.relevance_summary.company_specific}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <div className="text-[10px] font-bold uppercase text-slate-400">Sector-Relevant</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white">
+                    {report.relevance_summary.sector_relevant}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <div className="text-[10px] font-bold uppercase text-slate-400">Macro Context</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white">
+                    {report.relevance_summary.macro_context}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <div className="text-[10px] font-bold uppercase text-slate-400">Irrelevant</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white">
+                    {report.relevance_summary.irrelevant}
+                  </div>
+                </div>
+              </div>
+            )}
           </SectionCard>
         </div>
       );
@@ -376,7 +424,20 @@ function ReportsContent() {
                       </>
                     )}
                   </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {ref.relevance && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${relevanceChipClass(ref.relevance)}`}>
+                        {RELEVANCE_LABELS[String(ref.relevance).toUpperCase()] || ref.relevance}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-bold uppercase text-slate-400">
+                      {ref.included_in_sentiment ? "Scored" : "Excluded from score"}
+                    </span>
+                  </div>
                   <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">{ref.title}</div>
+                  {ref.relevance_reason && (
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">{ref.relevance_reason}</div>
+                  )}
                   {ref.url && (
                     <a
                       href={ref.url}
@@ -410,6 +471,11 @@ function ReportsContent() {
                 >
                   <div className="flex items-center gap-2 text-[10px] font-mono uppercase text-slate-400">
                     <span className="px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800">{event.event_type}</span>
+                    {event.relevance && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border normal-case ${relevanceChipClass(event.relevance)}`}>
+                        {RELEVANCE_LABELS[String(event.relevance).toUpperCase()] || event.relevance}
+                      </span>
+                    )}
                     <span>confidence: {event.confidence}</span>
                     <span>uncertainty: {event.uncertainty}</span>
                   </div>

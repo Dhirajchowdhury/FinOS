@@ -53,7 +53,24 @@ def _build_lines(record, state: dict) -> list[str]:
         f"  Score:      {'n/a' if score is None else score}",
         f"  Confidence: {sentiment.get('confidence', '')}",
         f"  Source:     {sentiment.get('source', '')}",
+        f"  Method:     {sentiment.get('method', '')}",
+        f"  Signals:    {sentiment.get('positive_signals', 0)} positive / "
+        f"{sentiment.get('negative_signals', 0)} negative",
+        f"  Evidence:   {sentiment.get('article_count', 0)} eligible of "
+        f"{sentiment.get('total_retrieved', 0)} retrieved",
         f"  Rationale:  {sentiment.get('rationale', '')}",
+        "",
+    ]
+
+    summary = _as_dict(report.get("relevance_summary"))
+    lines += [
+        "EVIDENCE RELEVANCE",
+        "-" * 60,
+        f"  Retrieved:            {summary.get('total_retrieved', 0)}",
+        f"  Company-specific:     {summary.get('company_specific', 0)} (scored)",
+        f"  Sector-relevant:      {summary.get('sector_relevant', 0)} (context)",
+        f"  Macro context:        {summary.get('macro_context', 0)} (context)",
+        f"  Irrelevant:           {summary.get('irrelevant', 0)} (excluded)",
         "",
     ]
 
@@ -63,7 +80,13 @@ def _build_lines(record, state: dict) -> list[str]:
         for ref in facts:
             ref = _as_dict(ref)
             when = ref.get("published_at") or "date unknown"
-            lines.append(f"  [{ref.get('evidence_id', '')}] ({when}) {ref.get('title', '')}")
+            marker = "" if ref.get("included_in_sentiment") else " [excluded from score]"
+            lines.append(
+                f"  [{ref.get('evidence_id', '')}] ({when}) {ref.get('title', '')} "
+                f"[{ref.get('relevance', '')}]{marker}"
+            )
+            if ref.get("relevance_reason"):
+                lines.append(f"        reason: {ref['relevance_reason']}")
             if ref.get("url"):
                 lines.append(f"        {ref['url']}")
     else:
@@ -76,8 +99,8 @@ def _build_lines(record, state: dict) -> list[str]:
         for event in events:
             event = _as_dict(event)
             lines.append(
-                f"  [{event.get('event_id', '')}] {event.get('event_type', '')}: "
-                f"{event.get('summary', '')}"
+                f"  [{event.get('event_id', '')}] {event.get('event_type', '')} "
+                f"[{event.get('relevance', '')}]: {event.get('summary', '')}"
             )
     else:
         lines.append("  No events identified.")

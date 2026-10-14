@@ -33,19 +33,37 @@ def generate_report_csv(record, state: dict) -> str:
     writer.writerow([])
 
     writer.writerow(["SENTIMENT"])
-    writer.writerow(["Band", "Score", "Confidence", "Source", "Rationale"])
+    writer.writerow(["Band", "Score", "Confidence", "Source", "Method", "Positive Signals", "Negative Signals", "Eligible Articles", "Total Retrieved", "Rationale"])
     score = sentiment.get("score")
     writer.writerow([
         sentiment.get("band", ""),
         "" if score is None else score,
         sentiment.get("confidence", ""),
         sentiment.get("source", ""),
+        sentiment.get("method", ""),
+        sentiment.get("positive_signals", 0),
+        sentiment.get("negative_signals", 0),
+        sentiment.get("article_count", 0),
+        sentiment.get("total_retrieved", 0),
         sentiment.get("rationale", ""),
     ])
     writer.writerow([])
 
+    summary = _as_dict(report.get("relevance_summary"))
+    writer.writerow(["EVIDENCE RELEVANCE"])
+    writer.writerow(["Retrieved", "Company-Specific (scored)", "Sector-Relevant", "Macro Context", "Irrelevant", "Included In Sentiment"])
+    writer.writerow([
+        summary.get("total_retrieved", 0),
+        summary.get("company_specific", 0),
+        summary.get("sector_relevant", 0),
+        summary.get("macro_context", 0),
+        summary.get("irrelevant", 0),
+        summary.get("included_in_sentiment", 0),
+    ])
+    writer.writerow([])
+
     writer.writerow(["OBSERVED FACTS"])
-    writer.writerow(["Evidence ID", "Source", "Title", "Publisher", "Published At", "URL"])
+    writer.writerow(["Evidence ID", "Source", "Title", "Publisher", "Published At", "URL", "Relevance", "Included In Sentiment", "Relevance Reason"])
     for ref in report.get("observed_facts", []) or []:
         ref = _as_dict(ref)
         writer.writerow([
@@ -55,17 +73,21 @@ def generate_report_csv(record, state: dict) -> str:
             ref.get("publisher", ""),
             ref.get("published_at", ""),
             ref.get("url", ""),
+            ref.get("relevance", ""),
+            ref.get("included_in_sentiment", ""),
+            ref.get("relevance_reason", ""),
         ])
     writer.writerow([])
 
     writer.writerow(["EVENTS"])
-    writer.writerow(["Event ID", "Type", "Summary", "Sectors", "Macro Factors", "Confidence", "Evidence IDs"])
+    writer.writerow(["Event ID", "Type", "Summary", "Relevance", "Sectors", "Macro Factors", "Confidence", "Evidence IDs"])
     for event in report.get("events", []) or []:
         event = _as_dict(event)
         writer.writerow([
             event.get("event_id", ""),
             event.get("event_type", ""),
             event.get("summary", ""),
+            event.get("relevance", ""),
             " | ".join(event.get("sectors", []) or []),
             " | ".join(event.get("macro_factors", []) or []),
             event.get("confidence", ""),

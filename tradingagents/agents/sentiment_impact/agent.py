@@ -164,7 +164,7 @@ def run_sentiment_impact(
         else None
     )
     if enriched is not None:
-        sentiment = enriched
+        sentiment = enriched.model_copy(update={"total_retrieved": len(items)})
     else:
         unavailable.append(
             UnavailableEvidence(

@@ -93,6 +93,8 @@ def enrich_sentiment(
             rationale=f"LLM enrichment: {result.rationale}",
             evidence_ids=list(evidence_ids),
             source=SentimentSource.LLM,
+            method="llm_sentiment",
+            article_count=len(items),
         )
     except Exception as exc:  # noqa: BLE001 - fall back to deterministic
         logger.warning("sentiment-impact: LLM enrichment failed (%s); using baseline", exc)

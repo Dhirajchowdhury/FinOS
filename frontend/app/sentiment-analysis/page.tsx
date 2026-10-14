@@ -9,6 +9,7 @@ import {
   EvidenceRef,
   EventClaim,
   TransmissionPath,
+  RelevanceSummary,
   SourceQuality,
   UnavailableEvidence,
 } from "@/lib/api/analysis";
@@ -53,6 +54,35 @@ function statusTone(status: string | undefined): string {
     default:
       return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700";
   }
+}
+
+const RELEVANCE_LABELS: Record<string, string> = {
+  COMPANY_SPECIFIC: "Company-specific",
+  SECTOR_RELEVANT: "Sector-relevant",
+  MACRO_CONTEXT: "Macro context",
+  IRRELEVANT: "Irrelevant",
+};
+
+function relevanceTone(relevance: string | null | undefined): string {
+  switch ((relevance || "").toUpperCase()) {
+    case "COMPANY_SPECIFIC":
+      return "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
+    case "SECTOR_RELEVANT":
+      return "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800";
+    case "MACRO_CONTEXT":
+      return "bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800";
+    default:
+      return "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700";
+  }
+}
+
+function RelevanceBadge({ relevance }: { relevance: string | null | undefined }) {
+  if (!relevance) return null;
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${relevanceTone(relevance)}`}>
+      {RELEVANCE_LABELS[String(relevance).toUpperCase()] || relevance}
+    </span>
+  );
 }
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -177,12 +207,12 @@ function SentimentAnalysisContent() {
   const sources: SourceQuality[] = report?.data_quality?.sources || [];
   const missingInputs: string[] = report?.data_quality?.missing_inputs || [];
   const unavailable: UnavailableEvidence[] = report?.unavailable_evidence || [];
+  const relevanceSummary: RelevanceSummary | undefined = report?.relevance_summary || undefined;
 
   const isNoEvidence =
     phase === "success" &&
     !!result &&
-    (result.data_status === "UNAVAILABLE" ||
-      ((!sentiment || sentiment.source === "none") && observedFacts.length === 0));
+    (result.data_status === "UNAVAILABLE" || !sentiment || sentiment.source === "none");
 
   return (
     <AppShell
@@ -216,12 +246,15 @@ function SentimentAnalysisContent() {
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-3xl">
-            This feature normalises recent company and market news, applies a transparent
+            This feature normalises recent company and market news and classifies every article by
+            content — <span className="text-emerald-400 font-semibold">company-specific</span>,
+            sector-relevant, shared macro, or irrelevant — so unrelated articles never reach the score.
+            It applies a transparent
             <span className="text-emerald-400 font-semibold"> deterministic keyword baseline</span> (and an
-            optional LLM sentiment read when a provider key is configured), then reports an honest,
-            evidence-backed view: overall sentiment, the observed facts behind it, detected events,
-            and market-impact <span className="font-semibold">hypotheses</span> — never proven causation.
-            Unavailable evidence is surfaced explicitly rather than fabricated.
+            optional LLM sentiment read when a provider key is configured) to company-specific evidence only,
+            then reports an honest, evidence-backed view: overall sentiment, the observed facts behind it,
+            detected events, and market-impact <span className="font-semibold">hypotheses</span> — never proven
+            causation. Unavailable evidence is surfaced explicitly rather than fabricated.
           </p>
         </div>
 
@@ -446,9 +479,10 @@ function SentimentAnalysisContent() {
 
             {isNoEvidence && (
               <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
-                No usable news evidence was available for this entity and window, so no defensible
-                sentiment conclusion can be drawn. See <strong>Data Quality</strong> and{" "}
-                <strong>Unavailable Evidence</strong> below for the reason.
+                No <strong>company-specific</strong> news evidence was found for this entity and window, so
+                no defensible sentiment conclusion can be drawn. Retrieved articles not linked to the
+                company were excluded from scoring. See <strong>Evidence Relevance</strong>,{" "}
+                <strong>Data Quality</strong> and <strong>Unavailable Evidence</strong> below.
               </div>
             )}
 
@@ -467,7 +501,40 @@ function SentimentAnalysisContent() {
                   <Metric label="Confidence" value={sentiment.confidence} />
                   <Metric label="Source" value={sentiment.source} />
                 </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <Metric label="Method" value={<span className="font-mono text-[11px]">{sentiment.method || "n/a"}</span>} />
+                  <Metric
+                    label="Signals"
+                    value={`${sentiment.positive_signals ?? 0} pos / ${sentiment.negative_signals ?? 0} neg`}
+                  />
+                  <Metric
+                    label="Eligible Evidence"
+                    value={`${sentiment.article_count ?? 0} of ${sentiment.total_retrieved ?? 0}`}
+                  />
+                  <Metric
+                    label="Scored From"
+                    value="Company-specific only"
+                  />
+                </div>
                 <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{sentiment.rationale}</p>
+              </SectionCard>
+            )}
+
+            {/* Evidence relevance */}
+            {relevanceSummary && (
+              <SectionCard title="Evidence Relevance">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <Metric label="Retrieved" value={relevanceSummary.total_retrieved} />
+                  <Metric label="Company-Specific" value={relevanceSummary.company_specific} />
+                  <Metric label="Sector-Relevant" value={relevanceSummary.sector_relevant} />
+                  <Metric label="Macro Context" value={relevanceSummary.macro_context} />
+                  <Metric label="Irrelevant" value={relevanceSummary.irrelevant} />
+                  <Metric label="Scored" value={relevanceSummary.included_in_sentiment} />
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Only <strong>company-specific</strong> articles drive the sentiment score. Sector and
+                  macro articles are retained as labelled context; irrelevant articles are excluded.
+                </p>
               </SectionCard>
             )}
 
@@ -498,8 +565,29 @@ function SentimentAnalysisContent() {
                             <span>{ref.publisher}</span>
                           </>
                         )}
+                        {ref.source_feed && (
+                          <>
+                            <span>•</span>
+                            <span>{ref.source_feed}</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <RelevanceBadge relevance={ref.relevance} />
+                        {ref.included_in_sentiment ? (
+                          <span className="text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400">
+                            Scored
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold uppercase text-slate-400">
+                            Excluded from score
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">{ref.title}</div>
+                      {ref.relevance_reason && (
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{ref.relevance_reason}</div>
+                      )}
                       {ref.url && (
                         <a
                           href={ref.url}
@@ -530,6 +618,7 @@ function SentimentAnalysisContent() {
                     >
                       <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase text-slate-400">
                         <span className="px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800">{event.event_type}</span>
+                        <RelevanceBadge relevance={event.relevance} />
                         {event.published_at && (
                           <span className="inline-flex items-center gap-1 normal-case">
                             <Clock className="w-3 h-3" />
