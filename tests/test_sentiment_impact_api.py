@@ -126,6 +126,7 @@ def test_analysis_returns_versioned_contract(auth_client):
         "sentiment",
         "events",
         "impact_hypotheses",
+        "relevance_summary",
         "data_quality",
         "unavailable_evidence",
     ):
@@ -135,7 +136,12 @@ def test_analysis_returns_versioned_contract(auth_client):
     assert len(report["observed_facts"]) == 2
     assert report["observed_facts"][0]["evidence_id"] == "ev_1"
     assert report["events"]
-    assert report["impact_hypotheses"]
+    # One TCS article is company-specific; the RBI article is shared macro
+    # context. TCS has no verified macro exposure, so no hypothesis is grounded
+    # and the list is legitimately empty (never an invented pathway).
+    assert report["relevance_summary"]["company_specific"] == 1
+    assert report["relevance_summary"]["macro_context"] == 1
+    assert isinstance(report["impact_hypotheses"], list)
 
 
 def test_analysis_is_persisted_and_retrievable(auth_client):

@@ -78,12 +78,12 @@ _EVENT_KEYWORDS: list[tuple[EventType, tuple[str, ...]]] = [
 ]
 
 _SECTOR_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "Energy": ("oil", "gas", "refin", "energy", "petroleum"),
-    "Technology": ("software", "semiconductor", "chip", "cloud", "ai ", "artificial intelligence", "tech"),
+    "Energy": ("oil", "gas", "refining", "refinery", "energy", "petroleum"),
+    "Technology": ("software", "semiconductor", "chip", "cloud", "ai", "artificial intelligence", "technology"),
     "Financials": ("bank", "lending", "insurance", "credit", "financial"),
     "Healthcare": ("pharma", "drug", "health", "biotech", "medicine"),
     "Consumer": ("retail", "consumer", "apparel", "beverage", "food"),
-    "Industrials": ("manufactur", "industrial", "machinery", "defense", "aerospace"),
+    "Industrials": ("manufacturing", "industrial", "machinery", "defense", "aerospace"),
 }
 
 _MACRO_KEYWORDS: dict[str, tuple[str, ...]] = {
@@ -336,6 +336,7 @@ def deterministic_events(
                 uncertainty="high",
                 relevance=article.relevance,
                 relevance_reason=article.reason,
+                matched_entity=article.matched_entity,
             )
         )
     return events
@@ -379,17 +380,19 @@ def build_impact_hypotheses(
                 )
             )
         if event.relevance is RelevanceClass.SECTOR_RELEVANT and profile.sector:
-            key = (profile.sector, ticker)
+            factor = event.matched_entity or profile.sector
+            key = (factor, ticker)
             if key not in seen:
                 seen.add(key)
                 paths.append(
                     _path(
                         index=len(paths),
-                        source_factor=profile.sector,
+                        source_factor=factor,
                         ticker=ticker,
                         direction=_direction_from_event(event),
                         mechanism=_SECTOR_MECHANISMS.get(
-                            profile.sector, "Sector demand/cost conditions affect the company."
+                            profile.sector,
+                            f"{profile.sector} demand/cost conditions can affect {profile.name}.",
                         ),
                         evidence_ids=event.evidence_ids,
                     )

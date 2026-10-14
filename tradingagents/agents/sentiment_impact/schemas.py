@@ -210,6 +210,9 @@ class EventClaim(BaseModel):
         description="Relevance class of the article this event was derived from.",
     )
     relevance_reason: str = Field(default="", description="Why the source article was classified so.")
+    matched_entity: str | None = Field(
+        default=None, description="Entity/sector/macro term that classified the source article."
+    )
 
 
 class EntityLink(BaseModel):

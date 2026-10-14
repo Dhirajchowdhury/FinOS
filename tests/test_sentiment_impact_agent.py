@@ -46,7 +46,12 @@ def test_run_offline_builds_evidence_backed_report(monkeypatch):
     assert resp.report.sentiment.source is SentimentSource.DETERMINISTIC
     assert resp.report.sentiment.score is not None
     assert resp.report.events
-    assert resp.report.impact_hypotheses
+    # Two TCS articles are company-specific; the Fed article is shared macro
+    # context and must NOT be counted as company sentiment evidence.
+    summary = resp.report.relevance_summary
+    assert summary.company_specific == 2
+    assert summary.macro_context == 1
+    assert summary.included_in_sentiment == 2
 
     evidence_ids = {ref.evidence_id for ref in resp.report.observed_facts}
     for event in resp.report.events:
